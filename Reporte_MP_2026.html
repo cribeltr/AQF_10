@@ -28,12 +28,8 @@
   .card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(16,24,40,.10);border-color:var(--brand)}
   .card .n{font-size:22px;font-weight:700;color:var(--brand-dark)}
   .card .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-  .tabs{display:flex;gap:6px;margin:8px 0 0}
-  .tab{padding:9px 16px;border:1px solid var(--line);border-bottom:none;cursor:pointer;
-    background:#e7ecf3;border-radius:9px 9px 0 0;font-weight:600;color:var(--muted)}
-  .tab.active{background:var(--panel);color:var(--brand-dark)}
-  .toolbar{background:var(--panel);border:1px solid var(--line);border-radius:0 10px 10px 10px;
-    padding:11px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
+  .toolbar{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:11px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:8px 0 12px}
   .toolbar input[type=search],.toolbar select{padding:7px 9px;border:1px solid var(--line);
     border-radius:7px;font-size:12.5px;background:#fff;color:var(--ink)}
   .toolbar input[type=search]{min-width:220px;flex:1}
@@ -56,13 +52,6 @@
   tbody tr:hover{background:#f6f9fd}
   td.mono{font-family:Consolas,"Courier New",monospace}
   tr.clk{cursor:pointer}
-  .nota-cell{max-width:340px;white-space:normal;line-height:1.35}
-  .nota-empty{color:var(--muted);font-style:italic}
-  tr.has-nota td.nota-cell{box-shadow:inset 3px 0 0 var(--brand);background:#f3f8ff}
-  textarea.note-edit{width:100%;min-height:170px;padding:9px;border:1px solid var(--line);
-    border-radius:8px;font:inherit;font-size:13px;resize:vertical}
-  .note-meta{font-size:11.5px;color:var(--muted);margin-top:6px}
-  .modal label{display:block;font-weight:600;color:var(--brand-dark);margin:8px 0 4px}
   .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
   .b-ok{color:var(--ok);background:var(--ok-bg)}
   .b-reprog{color:var(--reprog);background:var(--reprog-bg)}
@@ -120,30 +109,17 @@
   tbody td:first-child{position:sticky;left:0;background:var(--panel);z-index:2}
   tbody tr:nth-child(even) td:first-child{background:#f6f8fc}
   tbody tr:hover td:first-child{background:#e9f1fb}
-  tr.has-nota td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
-  .firstcol{max-width:230px;overflow:hidden;text-overflow:ellipsis}
+  .firstcol{max-width:260px;overflow:hidden;text-overflow:ellipsis}
   .firstcol .rowbtn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
-  .rowbtn,.nota-btn{background:none;border:none;font:inherit;color:inherit;cursor:pointer;text-align:left;padding:0;width:100%}
-  .rowbtn{color:var(--brand-dark);font-weight:600}
-  .nota-btn{white-space:normal;line-height:1.35}
+  .rowbtn{background:none;border:none;font:inherit;color:var(--brand-dark);font-weight:600;cursor:pointer;text-align:left;padding:0;width:100%}
   .lnk{background:none;border:none;color:var(--brand);cursor:pointer;font:inherit;padding:0;text-decoration:underline}
   :focus-visible{outline:2px solid var(--brand);outline-offset:1px;border-radius:3px}
   thead th:focus-visible{outline-offset:-2px}
-  .st-abierto{color:#fff;background:#c0392b}
-  .st-proceso{color:#7a4f00;background:#ffe2a8}
-  .st-cerrado{color:#fff;background:var(--ok)}
   .active-chips{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 12px;align-items:center;min-height:0}
   .active-chips:empty{display:none}
   .fchip{display:inline-flex;align-items:center;gap:6px;background:#e7eef9;color:var(--brand-dark);
     border:1px solid #cfe0f5;border-radius:999px;padding:3px 6px 3px 11px;font-size:12px}
   .fchip .fx{background:none;border:none;cursor:pointer;color:var(--brand-dark);font-size:13px;line-height:1;padding:0}
-  .hist{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto}
-  .hist li{padding:8px 10px;border-bottom:1px solid var(--line)}
-  .hist li:last-child{border-bottom:none}
-  .hist .he{display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .hist .ht{font-size:11px;color:var(--muted)}
-  .hist .hx{white-space:pre-wrap;margin-top:3px}
-  .del-entry{color:var(--no);font-size:12px}
   td.empty{text-align:center;padding:44px}
   .empty-box{color:var(--muted);font-size:14px;line-height:2.2}
   #busy{position:fixed;inset:0;background:rgba(255,255,255,.62);display:none;align-items:center;justify-content:center;z-index:300}
@@ -158,7 +134,7 @@
     thead th{position:static}
     tbody td:first-child{position:static}
     .firstcol{max-width:none}
-    .rowbtn,.nota-btn,a{color:#000!important}
+    .rowbtn,a{color:#000!important}
     body{font-size:10px;background:#fff}
     .print-only{display:block;margin:0 0 8px;font-weight:700;color:#000}
     tbody tr:hover td,tbody tr:nth-child(even) td{background:#fff}
@@ -168,32 +144,23 @@
 <body>
 <header class="top">
   <h1>Programa de Mantención Preventiva de Equipos Médicos Críticos — 2026</h1>
-  <p>Hospital Hernán Henríquez Aravena · listado único de equipos con notas + eventos · importable y cliqueable</p>
+  <p>Hospital Hernán Henríquez Aravena · una fila por evento de mantención · importable y cliqueable</p>
 </header>
 
 <div class="wrap">
   <div class="cards" id="cards"></div>
 
-  <div class="tabs" role="tablist" aria-label="Vistas">
-    <div class="tab active" data-tab="equipos" role="tab" tabindex="0" aria-selected="true">Equipos (listado único)</div>
-    <div class="tab" data-tab="eventos" role="tab" tabindex="0" aria-selected="false">Eventos</div>
-  </div>
-
   <div class="toolbar" role="search">
     <input type="search" id="q" aria-label="Buscar" placeholder="Buscar: equipo, serie, inventario, marca, servicio…">
     <select id="f_servicio" aria-label="Filtrar por servicio"><option value="">Servicio: todos</option></select>
     <select id="f_clasif" aria-label="Filtrar por clasificación"><option value="">Clasificación: todas</option></select>
-    <select id="f_seguimiento" aria-label="Filtrar por estado de seguimiento"><option value="">Seguimiento: todos</option></select>
     <select id="f_mes" aria-label="Filtrar por mes"><option value="">Mes: todos</option></select>
     <select id="f_resultado" aria-label="Filtrar por resultado"><option value="">Resultado: todos</option></select>
     <button class="btn" id="clear">Limpiar</button>
     <span class="sp"></span>
-    <button class="btn" id="expNotas" title="Descargar las notas como archivo .json">⭳ Exportar notas</button>
-    <button class="btn" id="impNotas" title="Cargar notas desde un archivo .json">⭱ Importar notas</button>
-    <input type="file" id="notesFile" accept=".json,application/json" style="display:none">
     <button class="btn primary" id="importBtn" title="Cargar un .xlsm actualizado">⭱ Importar .xlsm</button>
     <input type="file" id="file" accept=".xlsm,.xlsx,.xls" style="display:none">
-    <button class="btn" id="csv" title="Exportar la vista actual a CSV">Exportar CSV</button>
+    <button class="btn" id="csv" title="Exportar a CSV">Exportar CSV</button>
     <button class="btn" id="print" title="Imprimir o guardar como PDF">Imprimir</button>
     <span class="count" id="count" aria-live="polite"></span>
   </div>
@@ -351,68 +318,12 @@ function transform(rows){            // rows[0] = encabezado
 }
 
 // ---- estado global ----
-let TAB="equipos";
-let DATA, EQUIPOS=[], EQ_BY_KEY={};
-let sortKey=null, sortDir=1;
+let DATA, sortKey=null, sortDir=1;
 const $=id=>document.getElementById(id);
-
-// ---- notas / actualizaciones por equipo ----
-// Clave estable por equipo: N° de Serie, o N° de Inventario, o "#ID".
-// Modelo v2: { entries:[{ts,text}], status, ts(última edición) }. Estados de seguimiento.
-const NOTES_KEY="aqf_mp_notas_v2";
-const STATUS=[["","Sin seguimiento"],["abierto","Abierto"],["proceso","En proceso"],["cerrado","Cerrado"]];
-const STATUS_LABEL={"":"Sin seguimiento","abierto":"Abierto","proceso":"En proceso","cerrado":"Cerrado"};
-let LS_OK=true, NOTES={};
-function nowIso(){ return new Date().toISOString(); }
-function normNote(v){
-  if(!v) return {entries:[],status:"",ts:""};
-  if(Array.isArray(v.entries))
-    return {entries:v.entries.filter(x=>x&&x.text).map(x=>({ts:x.ts||"",text:String(x.text)})),
-            status:v.status||"", ts:v.ts||""};
-  if(v.text) return {entries:[{ts:v.ts||"",text:String(v.text)}], status:v.status||"", ts:v.ts||""}; // compat v1
-  return {entries:[],status:v.status||"",ts:v.ts||""};
-}
-function loadNotes(){
-  let raw={};
-  try{ raw=JSON.parse(localStorage.getItem(NOTES_KEY)||localStorage.getItem("aqf_mp_notas_v1")||"{}")||{}; }
-  catch(e){ LS_OK=false; raw={}; }
-  const out={}; for(const k in raw){ const nn=normNote(raw[k]); if(nn.entries.length||nn.status) out[k]=nn; }
-  return out;
-}
-NOTES=loadNotes();
-function equipKey(e){ return e.serie || e.inventario || ("#"+e.id); }
-function noteFor(key){ return NOTES[key] || {entries:[],status:"",ts:""}; }
-function latestText(n){ return n.entries.length ? n.entries[n.entries.length-1].text : ""; }
-function hasNote(n){ return n.entries.length>0 || !!n.status; }
-function countNotes(){ return Object.keys(NOTES).filter(k=>hasNote(NOTES[k])).length; }
-function persistNotes(){
-  try{ localStorage.setItem(NOTES_KEY, JSON.stringify(NOTES)); }
-  catch(e){ if(LS_OK){ LS_OK=false;
-    toast("No se pudieron guardar las notas en este navegador; usa «Exportar notas» para conservarlas."); } }
-}
-function ensureNote(key){ if(!NOTES[key]) NOTES[key]={entries:[],status:"",ts:""}; return NOTES[key]; }
-function cleanupNote(key){ const n=NOTES[key]; if(n && !n.entries.length && !n.status) delete NOTES[key]; }
-function addEntry(key,text){ text=(text||"").trim(); if(!text) return; const n=ensureNote(key);
-  n.entries.push({ts:nowIso(),text}); n.ts=nowIso(); persistNotes(); }
-function setStatus(key,status){ const n=ensureNote(key); n.status=status||""; n.ts=nowIso(); cleanupNote(key); persistNotes(); }
-function delEntry(key,idx){ const n=NOTES[key]; if(!n) return; n.entries.splice(idx,1); n.ts=nowIso(); cleanupNote(key); persistNotes(); }
-function fmtTs(iso){ if(!iso) return "—"; try{ return new Date(iso).toLocaleString("es-CL"); }catch(e){ return iso; } }
-function fmtDate(iso){ if(!iso) return ""; try{ return new Date(iso).toLocaleDateString("es-CL"); }catch(e){ return iso; } }
-
-function setData(d){
-  DATA=d;
-  EQUIPOS=DATA.equipos.filter(e=>e.serie||e.inventario);   // listado único (equipo real)
-  EQ_BY_KEY={}; EQUIPOS.forEach(e=>{ EQ_BY_KEY[equipKey(e)]=e; });
-}
+function setData(d){ DATA=d; }
 setData(transform(RAW));
 
 // ---- definición de columnas ----
-const EQUIPO_COLS=[
-  ["equipo","Equipo"],["id","ID"],["inventario","N° Inventario"],["serie","N° de Serie"],
-  ["servicio","Servicio"],["ubicacion","Ubicación"],["marca","Marca"],["modelo","Modelo"],
-  ["_realizadas","Realizadas"],["_pend","Pendientes"],["ultimaActualizacion","Última Act."],
-  ["_seg","Seguimiento"],["_nota","Notas / Actualizaciones"],["_editado","Editado"]
-];
 const EVENT_COLS=[
   ["equipo","Nombre del Equipo"],["id","ID"],["carpeta","N° Carpeta"],["inventario","N° Inventario"],
   ["servicio","Servicio"],["unidad","Unidad"],["ubicacion","Ubicación"],["procedencia","Procedencia"],
@@ -436,14 +347,10 @@ function refreshFilters(){
   fillSelect("f_clasif",clasifs,"Clasificación: todas");
   fillSelect("f_mes",MESES,"Mes: todos");
   fillSelect("f_resultado",["Si (Realizada)","C1–C8 (Reprogramada)","No (No realizada)","NU (No ubicable)","Baja","No registrado"],"Resultado: todos");
-  const seg=$("f_seguimiento"), cur=seg.value;
-  seg.innerHTML='<option value="">Seguimiento: todos</option><option value="__none__">Sin seguimiento</option>'+
-    STATUS.filter(s=>s[0]).map(([k,l])=>'<option value="'+k+'">'+l+'</option>').join("");
-  seg.value=cur;
 }
 function filters(){
   return {q:$("q").value.trim().toLowerCase(), servicio:$("f_servicio").value, clasif:$("f_clasif").value,
-    seg:$("f_seguimiento").value, mes:$("f_mes").value, resultado:$("f_resultado").value};
+    mes:$("f_mes").value, resultado:$("f_resultado").value};
 }
 function matchEquipoText(e,q){
   if(!q) return true;
@@ -535,68 +442,9 @@ function eventoRowHtml(d, idx){
   return h+"</tr>";
 }
 
-// ---- filtrado de equipos (listado único): búsqueda + servicio + clasificación + seguimiento ----
-function filteredEquiposView(){
-  const f=filters();
-  return EQUIPOS.filter(e=>{
-    if(f.servicio && e.servicio!==f.servicio) return false;
-    if(f.clasif && e.clasif!==f.clasif) return false;
-    if(f.seg){ const st=noteFor(equipKey(e)).status; if(f.seg==="__none__"){ if(st) return false; } else if(st!==f.seg) return false; }
-    if(!matchEquipoText(e,f.q)) return false;
-    return true;
-  });
-}
-function statusBadge(st){ return st?('<span class="badge st-'+st+'">'+STATUS_LABEL[st]+'</span>'):'<span class="muted">—</span>'; }
-
-// ---- render equipos (una fila por equipo + notas/seguimiento) ----
-function renderEquipos(){
-  renderHead(EQUIPO_COLS);
-  const get=(e,k)=>{
-    if(k==="_realizadas") return e.counts.si;
-    if(k==="_pend") return e.pendientes;
-    if(k==="_seg") return noteFor(equipKey(e)).status;
-    if(k==="_nota") return latestText(noteFor(equipKey(e)));
-    if(k==="_editado") return noteFor(equipKey(e)).ts;
-    return e[k];
-  };
-  const rows=sortRows(filteredEquiposView(),get);
-  $("count").textContent=rows.length+" de "+EQUIPOS.length+" equipos"+(countNotes()?(" · "+countNotes()+" con notas"):"");
-  if(!rows.length){ showEmpty(EQUIPO_COLS.length); return; }
-  startWindow(rows, equipoRowHtml);
-}
-function equipoRowHtml(e){
-  const key=equipKey(e), n=noteFor(key), lt=latestText(n);
-  let h='<tr class="clk'+(hasNote(n)?' has-nota':'')+'" data-notekey="'+esc(key)+'">';
-  EQUIPO_COLS.forEach(([k])=>{
-    if(k==="equipo") h+='<td class="firstcol" title="'+esc(e.equipo)+'">'+(esc(e.equipo)||'<span class=muted>—</span>')+'</td>';
-    else if(k==="_realizadas") h+='<td><span class="pill cnt-ok">'+e.counts.si+'</span></td>';
-    else if(k==="_pend"){ const c=e.pendientes>0?"cnt-noreg":"zero"; h+='<td><span class="pill '+c+'">'+e.pendientes+'</span></td>'; }
-    else if(k==="_seg") h+='<td>'+statusBadge(n.status)+'</td>';
-    else if(k==="_nota"){ const extra=n.entries.length>1?(' <span class="muted">(+'+(n.entries.length-1)+')</span>'):'';
-      h+='<td class="nota-cell"><button class="nota-btn" aria-label="Editar notas de '+esc(e.equipo)+'">'+
-        (lt?esc(lt.length>80?lt.slice(0,80)+"…":lt)+extra:'<span class="nota-empty">✎ Agregar nota</span>')+'</button></td>'; }
-    else if(k==="_editado") h+='<td class="muted" style="white-space:nowrap">'+fmtTs(n.ts)+'</td>';
-    else if(k==="serie"||k==="inventario") h+='<td class="mono">'+(esc(e[k])||'<span class=muted>—</span>')+'</td>';
-    else h+='<td>'+(esc(e[k])||'<span class=muted>—</span>')+'</td>';
-  });
-  return h+"</tr>";
-}
-
-function render(){
-  const eq=(TAB==="equipos");
-  $("f_seguimiento").style.display=eq?"":"none";
-  $("f_mes").style.display=$("f_resultado").style.display=eq?"none":"";
-  $("expNotas").style.display=$("impNotas").style.display=eq?"":"none";
-  document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-selected", x.dataset.tab===TAB?"true":"false"));
-  renderActiveChips();
-  if(eq) renderEquipos(); else renderEventos();
-}
-function activateTab(name){
-  TAB=name; sortKey=null;
-  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active", x.dataset.tab===name));
-}
+function render(){ renderActiveChips(); renderEventos(); }
 function sortBy(k){ if(sortKey===k) sortDir*=-1; else {sortKey=k;sortDir=1;} render(); }
-function clearFilters(){ $("q").value=""; ["f_servicio","f_clasif","f_seguimiento","f_mes","f_resultado"].forEach(id=>$(id).value=""); sortKey=null; render(); }
+function clearFilters(){ $("q").value=""; ["f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).value=""); sortKey=null; render(); }
 
 // ---- chips de filtros activos (removibles) ----
 function renderActiveChips(){
@@ -604,9 +452,8 @@ function renderActiveChips(){
   if($("q").value.trim()) items.push(["q","Búsqueda: "+$("q").value.trim()]);
   if(f.servicio) items.push(["f_servicio","Servicio: "+f.servicio]);
   if(f.clasif) items.push(["f_clasif","Clasificación: "+f.clasif]);
-  if(TAB==="equipos" && f.seg) items.push(["f_seguimiento","Seguimiento: "+(f.seg==="__none__"?"Sin seguimiento":STATUS_LABEL[f.seg])]);
-  if(TAB==="eventos" && f.mes) items.push(["f_mes","Mes: "+f.mes]);
-  if(TAB==="eventos" && f.resultado) items.push(["f_resultado","Resultado: "+f.resultado]);
+  if(f.mes) items.push(["f_mes","Mes: "+f.mes]);
+  if(f.resultado) items.push(["f_resultado","Resultado: "+f.resultado]);
   $("activeFilters").innerHTML = items.length
     ? items.map(([id,lbl])=>'<span class="fchip">'+esc(lbl)+'<button class="fx" data-clear="'+id+'" aria-label="Quitar filtro">✕</button></span>').join("")
       +'<button class="lnk" id="chipClearAll">Limpiar todo</button>'
@@ -653,59 +500,24 @@ function modalEvento(ev){
     ["Cant. Pendientes",ev.pendientes],["Última Actualización",ev.ultimaActualizacion]]));
 }
 
-// ---- editor de notas / seguimiento por equipo (historial con fecha automática) ----
-function openNoteModal(key){
-  const e=EQ_BY_KEY[key]; if(!e) return;
-  const n=noteFor(key);
-  const statusSel="<select id='noteStatus' aria-label='Estado de seguimiento'>"+
-    STATUS.map(([k,l])=>"<option value='"+k+"'"+(k===n.status?" selected":"")+">"+l+"</option>").join("")+"</select>";
-  const hist = n.entries.length
-    ? "<ul class='hist'>"+n.entries.map((x,i)=>
-        "<li><div class='he'><span class='ht'>"+esc(fmtTs(x.ts))+"</span>"+
-        "<button class='lnk del-entry' data-i='"+i+"' aria-label='Borrar entrada'>✕ borrar</button></div>"+
-        "<div class='hx'>"+esc(x.text)+"</div></li>").reverse().join("")+"</ul>"
-    : "<p class='muted'>Sin entradas todavía.</p>";
-  const body=kv([["ID",e.id],["N° Inventario",e.inventario],["N° de Serie",e.serie],
-    ["Equipo",e.equipo],["Servicio",e.servicio],["Ubicación",e.ubicacion],
-    ["Marca",e.marca],["Modelo",e.modelo],["Última actualización (MP)",e.ultimaActualizacion]])
-    +"<label for='noteStatus'>Estado de seguimiento</label>"+statusSel
-    +"<label for='noteEntry'>Agregar entrada <span class='muted'>(se registra con fecha y hora automáticas)</span></label>"
-    +"<textarea id='noteEntry' class='note-edit' placeholder='Escribe una observación o actualización…'></textarea>"
-    +"<div style='margin-top:12px;display:flex;gap:8px;flex-wrap:wrap'>"
-    +"<button class='btn primary' id='noteSave'>Guardar</button>"
-    +"<button class='btn' id='noteCancel'>Cerrar</button></div>"
-    +"<h4 style='margin:16px 0 6px;color:var(--brand-dark)'>Historial</h4>"+hist;
-  openModal("Notas — "+(e.equipo||"Equipo")+" ("+(e.inventario||e.serie||("#"+e.id))+")", body);
-  $("noteSave").onclick=()=>{ setStatus(key,$("noteStatus").value); const t=$("noteEntry").value; if(t.trim()) addEntry(key,t);
-    closeModal(); render(); toast("Cambios guardados."); };
-  $("noteCancel").onclick=closeModal;
-  $("m-body").querySelectorAll(".del-entry").forEach(b=>b.onclick=()=>{ delEntry(key, +b.dataset.i); openNoteModal(key); render(); });
-}
-
 // ---- eventos de UI ----
 $("head").addEventListener("click",ev=>{ const th=ev.target.closest("th"); if(th) sortBy(th.dataset.k); });
 $("head").addEventListener("keydown",ev=>{ if(ev.key==="Enter"||ev.key===" "){ const th=ev.target.closest("th"); if(th){ ev.preventDefault(); sortBy(th.dataset.k); } } });
 $("body").addEventListener("click",ev=>{
   if(ev.target.id==="emptyClear"){ clearFilters(); return; }
-  const noteRow=ev.target.closest("tr[data-notekey]");
-  if(noteRow){ openNoteModal(noteRow.dataset.notekey); return; }
   const evRow=ev.target.closest("tr[data-ev]");
   if(evRow){ modalEvento(window.__evRows[+evRow.dataset.ev]); }
 });
 $("scroller").addEventListener("scroll",()=>{ const s=$("scroller");
   if(s.scrollTop+s.clientHeight >= s.scrollHeight-300) growWindow(); });
 $("cards").addEventListener("click",ev=>{ const c=ev.target.closest(".card"); if(!c) return;
-  if(c.dataset.rf){ activateTab("eventos"); $("f_resultado").value=c.dataset.rf; render(); } });
+  if(c.dataset.rf){ $("f_resultado").value=c.dataset.rf; render(); } });
 $("activeFilters").addEventListener("click",ev=>{
   const x=ev.target.closest("[data-clear]"); if(x){ $(x.dataset.clear).value=""; render(); return; }
   if(ev.target.id==="chipClearAll") clearFilters();
 });
-document.querySelectorAll(".tab").forEach(t=>{
-  t.addEventListener("click",()=>{ activateTab(t.dataset.tab); render(); });
-  t.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); activateTab(t.dataset.tab); render(); } });
-});
 let qT; $("q").addEventListener("input",()=>{ clearTimeout(qT); qT=setTimeout(render,180); });
-["f_servicio","f_clasif","f_seguimiento","f_mes","f_resultado"].forEach(id=>$(id).addEventListener("change",render));
+["f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).addEventListener("change",render));
 $("clear").addEventListener("click",clearFilters);
 $("m-x").addEventListener("click",closeModal);
 $("ov").addEventListener("click",ev=>{ if(ev.target===$("ov")) closeModal(); });
@@ -719,7 +531,7 @@ $("ov").addEventListener("keydown",ev=>{                 // trampa de foco en el
 });
 
 // filtros rápidos (chips de leyenda): filtran por resultado -> vista Eventos
-function chipApply(ch){ activateTab("eventos"); $("f_resultado").value=ch.dataset.r||""; render(); window.scrollTo({top:0,behavior:"smooth"}); }
+function chipApply(ch){ $("f_resultado").value=ch.dataset.r||""; render(); window.scrollTo({top:0,behavior:"smooth"}); }
 document.querySelectorAll(".chip").forEach(ch=>{
   ch.addEventListener("click",()=>chipApply(ch));
   ch.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); chipApply(ch); } });
@@ -746,64 +558,19 @@ $("file").addEventListener("change",ev=>{
   rd.readAsArrayBuffer(file); ev.target.value="";
 });
 
-// ---- exportar/importar notas (JSON v2; combina historiales por equipo) ----
-$("expNotas").addEventListener("click",()=>{
-  const payload={app:"AQF MP "+YEAR, version:2, exported:nowIso(), notas:NOTES};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8;"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="notas_mp_"+YEAR+".json"; a.click();
-});
-$("impNotas").addEventListener("click",()=>$("notesFile").click());
-$("notesFile").addEventListener("change",ev=>{
-  const file=ev.target.files[0]; if(!file) return;
-  const rd=new FileReader();
-  rd.onload=e=>{ try{
-    const obj=JSON.parse(e.target.result); const inc=(obj&&obj.notas)?obj.notas:obj;
-    if(!inc||typeof inc!=="object") throw new Error("formato no reconocido");
-    let n=0;
-    for(const k in inc){
-      const incN=normNote(inc[k]); if(!incN.entries.length && !incN.status) continue;
-      const cur=NOTES[k]?normNote(NOTES[k]):{entries:[],status:"",ts:""};
-      const seen={}, merged=[];
-      cur.entries.concat(incN.entries).forEach(x=>{ const id=(x.ts||"")+"|"+x.text; if(!seen[id]){ seen[id]=1; merged.push(x); } });
-      merged.sort((a,b)=> (a.ts||"")<(b.ts||"")?-1:((a.ts||"")>(b.ts||"")?1:0));
-      const status=(incN.ts>cur.ts)?(incN.status||cur.status):(cur.status||incN.status);
-      const ts=(cur.ts>incN.ts?cur.ts:incN.ts);
-      NOTES[k]={entries:merged, status:status||"", ts:ts||""}; n++;
-    }
-    persistNotes(); render(); toast("Notas importadas/combinadas: "+n+" equipos.");
-  }catch(err){ toast("Error al importar notas: "+err.message); } };
-  rd.onerror=()=>toast("No se pudo leer el archivo de notas.");
-  rd.readAsText(file); ev.target.value="";
-});
-
-// ---- exportar CSV (vista activa) ----
+// ---- exportar CSV (eventos filtrados) ----
 $("csv").addEventListener("click",()=>{
-  let lines=[];
-  if(TAB==="equipos"){
-    lines.push(EQUIPO_COLS.map(c=> c[0]==="_seg"?"Seguimiento":(c[0]==="_nota"?"Notas (historial)":c[1])).join(";"));
-    filteredEquiposView().forEach(e=>{ const n=noteFor(equipKey(e));
-      lines.push(EQUIPO_COLS.map(([k])=>{
-        if(k==="_realizadas") return e.counts.si;
-        if(k==="_pend") return e.pendientes;
-        if(k==="_seg") return csv(STATUS_LABEL[n.status]||"");
-        if(k==="_nota") return csv(n.entries.map(x=>"["+fmtDate(x.ts)+"] "+x.text).join(" | "));
-        if(k==="_editado") return csv(fmtTs(n.ts));
-        return csv(e[k]);
-      }).join(";"));
-    });
-  }else{
-    lines.push(EVENT_COLS.map(c=>c[1]).join(";"));
-    filteredEvents().forEach(d=>{ lines.push(EVENT_COLS.map(c=>csv(c[0]==="estadoTxt"?d.estadoTxt:d[c[0]])).join(";")); });
-  }
+  const lines=[EVENT_COLS.map(c=>c[1]).join(";")];
+  filteredEvents().forEach(d=>{ lines.push(EVENT_COLS.map(c=>csv(c[0]==="estadoTxt"?d.estadoTxt:d[c[0]])).join(";")); });
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8;"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="reporte_mp_"+YEAR+"_"+TAB+".csv"; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="reporte_mp_"+YEAR+"_eventos.csv"; a.click();
 });
 function csv(v){ v=(v==null)?"":String(v); return (/[;"\n]/.test(v))?'"'+v.replace(/"/g,'""')+'"':v; }
 
 // ---- imprimir / PDF (rinde todas las filas antes de imprimir) ----
 $("print").addEventListener("click",()=>{
   while(winShown<winRows.length) growWindow();
-  $("printHead").textContent="Reporte MP "+YEAR+" · "+(TAB==="equipos"?"Equipos":"Eventos")+" · "+new Date().toLocaleString("es-CL");
+  $("printHead").textContent="Reporte MP "+YEAR+" · Eventos · "+new Date().toLocaleString("es-CL");
   window.print();
 });
 
@@ -822,9 +589,7 @@ function renderNotes(){
   const mesRef = REF_MONTH>=1&&REF_MONTH<=12 ? MESES[REF_MONTH-1].toLowerCase() : "—";
   $("notes").innerHTML=
     "<p><b>Fuente:</b> hoja <code>Registro_MP-2026</code> de <code>"+esc(SRC)+"</code> (encabezado fila 7, columnas B–AQ, ignorando Q «Observación» y S «Responsable MP»).</p>"+
-    "<p><b>Vista «Equipos» (listado único):</b> una fila por equipo (identificado por N° de Serie o N° de Inventario). <b>Clic</b> en una fila para escribir/editar sus <b>Notas / Actualizaciones</b>.</p>"+
-    "<p><b>Notas / seguimiento:</b> cada equipo tiene un <b>historial de entradas con fecha automática</b> y un <b>estado de seguimiento</b> (Abierto / En proceso / Cerrado). Se guardan en este navegador (localStorage); usa <b>«Exportar notas»</b> (.json) para respaldar o compartir e <b>«Importar notas»</b> para combinarlas (se fusionan los historiales por equipo).</p>"+
-    "<p><b>Vista «Eventos»:</b> una fila por combinación de equipo × mes con programación (P) y/o resultado (R). <b>Clic</b> en una fila para ver el detalle del evento.</p>"+
+    "<p><b>Una fila por evento</b>: cada combinación de equipo × mes con programación (P) y/o resultado (R). <b>Clic</b> en una fila para ver el detalle del evento.</p>"+
     "<p><b>No registrado</b> (resultado vacío) = meses transcurridos (enero a "+mesRef+" "+YEAR+") con MP programada y sin resultado registrado; se refleja en «Pendientes» y en el estado «Pendiente (sin registro)».</p>"+
     "<p><b>N° de Serie / Inventario:</b> se conservan tal cual, respetando ceros a la izquierda.</p>"+
     "<p><b>Fecha de Ejecución:</b> el registro es a nivel de mes; se muestra el mes cuando el resultado es Si/Si-RA.</p>"+

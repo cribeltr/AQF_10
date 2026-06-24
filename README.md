@@ -9,7 +9,7 @@ desde el navegador** para actualizar los datos en vivo.
 | Archivo | Descripción |
 |---|---|
 | `generar_reporte.py` | Lee el `.xlsm` e incrusta los datos + SheetJS en el HTML. |
-| `Reporte_MP_2026.html` | App autónoma: vista Equipos (con notas) + vista Eventos, importar, filtros, drill-down. |
+| `Reporte_MP_2026.html` | App autónoma: vista de eventos, importar, filtros, drill-down. |
 | `vendor/xlsx.full.min.js` | Librería [SheetJS](https://sheetjs.com) (lectura de `.xlsx/.xlsm` en el navegador). |
 | `data/ProgramacionMP2026.xlsm` | Archivo fuente (datos por defecto). |
 
@@ -18,20 +18,11 @@ desde el navegador** para actualizar los datos en vivo.
 - **Importar `.xlsm`** (botón «⭱ Importar .xlsm»): re-lee la hoja `Registro_MP-2026`
   y recalcula todo en vivo. Los datos por defecto y los importados pasan por la
   **misma** función `transform()` en JavaScript, garantizando resultados idénticos.
-- **Vista «Equipos» (listado único)**: una fila por equipo (identificado por N° de
-  Serie o N° de Inventario). Cada fila abre el editor de **Notas / seguimiento**:
-  - **Historial de entradas** con fecha y hora automáticas (registro acumulativo).
-  - **Estado de seguimiento**: Abierto / En proceso / Cerrado (con filtro propio).
-  - Se guardan en el navegador (**localStorage**); **Exportar / Importar notas**
-    (`.json`) para respaldo o compartir; al importar se **fusionan los historiales**
-    por equipo.
-- **Vista «Eventos»**: una fila por evento (equipo × mes con actividad), con todos
-  los campos del equipo + Mes, Programa, Resultado, Fecha de Ejecución, Estado del
-  Equipo, Cant. Pendientes y Última Actualización.
-- **Cliqueable**: en Equipos la fila abre el editor de notas; en Eventos abre la
-  ficha del evento; los encabezados ordenan; tarjetas y chips de leyenda filtran.
-- Búsqueda, filtros (Servicio, Clasificación, Seguimiento, Mes, Resultado),
-  **chips de filtros activos**, **exportar CSV** de la vista activa e **imprimir/PDF**.
+- **Una fila por evento** (equipo × mes con actividad), con todos los campos del
+  equipo + Mes, Programa, Resultado, Fecha de Ejecución, Estado del Equipo, Cant.
+  Pendientes y Última Actualización. **Clic** en la fila abre la ficha del evento.
+- Búsqueda, filtros (Servicio, Clasificación, Mes, Resultado), **chips de filtros
+  activos**, **exportar CSV** e **imprimir/PDF**.
 
 ## UX / UI / accesibilidad
 
