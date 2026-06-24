@@ -9,7 +9,7 @@ desde el navegador** para actualizar los datos en vivo.
 | Archivo | Descripción |
 |---|---|
 | `generar_reporte.py` | Lee el `.xlsm` e incrusta los datos + SheetJS en el HTML. |
-| `Reporte_MP_2026.html` | App autónoma: matriz por equipo, eventos, importar, filtros, drill-down. |
+| `Reporte_MP_2026.html` | App autónoma: vista por evento, importar, filtros, drill-down. |
 | `vendor/xlsx.full.min.js` | Librería [SheetJS](https://sheetjs.com) (lectura de `.xlsx/.xlsm` en el navegador). |
 | `data/ProgramacionMP2026.xlsm` | Archivo fuente (datos por defecto). |
 
@@ -18,17 +18,13 @@ desde el navegador** para actualizar los datos en vivo.
 - **Importar `.xlsm`** (botón «⭱ Importar .xlsm»): re-lee la hoja `Registro_MP-2026`
   y recalcula todo en vivo. Los datos por defecto y los importados pasan por la
   **misma** función `transform()` en JavaScript, garantizando resultados idénticos.
-- **Vista «Matriz por equipo»**: una fila por equipo, **una columna por mes**
-  (Ene–Dic) coloreada por categoría, más columnas de conteo: **Sí · C1–C8 · No ·
-  NU · Baja · No registrado**.
-- **Vista «Eventos»**: una fila por evento (equipo × mes con actividad), con todos
-  los campos del equipo + Mes, Programa, Resultado, Fecha de Ejecución, Estado del
-  Equipo, Cant. Pendientes y Última Actualización.
-- **Todo es cliqueable**: celda de mes → ficha del evento; conteo → lista de esos
-  eventos; ID/equipo → línea de tiempo anual; fila de evento → ficha; tarjetas y
-  chips de leyenda → filtran; encabezados → ordenan.
+- **Una fila por evento** (equipo × mes con actividad), con todos los campos del
+  equipo + Mes, Programa, Resultado, Fecha de Ejecución, Estado del Equipo, Cant.
+  Pendientes y Última Actualización.
+- **Cliqueable**: cada fila abre la ficha de detalle del evento; los encabezados
+  ordenan; las tarjetas de resumen y los chips de la leyenda filtran.
 - Búsqueda, filtros (Servicio, Clasificación, Mes, Resultado) y **exportar CSV**
-  de la vista activa.
+  de los eventos filtrados.
 
 ## Fuente y reglas de lectura
 

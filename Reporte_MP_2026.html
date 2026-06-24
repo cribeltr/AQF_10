@@ -28,12 +28,8 @@
   .card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(16,24,40,.10);border-color:var(--brand)}
   .card .n{font-size:22px;font-weight:700;color:var(--brand-dark)}
   .card .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-  .tabs{display:flex;gap:6px;margin:6px 0 0}
-  .tab{padding:9px 16px;border:1px solid var(--line);border-bottom:none;cursor:pointer;
-    background:#e7ecf3;border-radius:9px 9px 0 0;font-weight:600;color:var(--muted)}
-  .tab.active{background:var(--panel);color:var(--brand-dark)}
-  .toolbar{background:var(--panel);border:1px solid var(--line);border-radius:0 10px 10px 10px;
-    padding:11px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
+  .toolbar{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:11px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:8px 0 12px}
   .toolbar input[type=search],.toolbar select{padding:7px 9px;border:1px solid var(--line);
     border-radius:7px;font-size:12.5px;background:#fff;color:var(--ink)}
   .toolbar input[type=search]{min-width:220px;flex:1}
@@ -128,16 +124,11 @@
 <body>
 <header class="top">
   <h1>Programa de Mantención Preventiva de Equipos Médicos Críticos — 2026</h1>
-  <p>Hospital Hernán Henríquez Aravena · vista matriz por equipo + vista por evento · importable y cliqueable</p>
+  <p>Hospital Hernán Henríquez Aravena · una fila por evento de mantención · importable y cliqueable</p>
 </header>
 
 <div class="wrap">
   <div class="cards" id="cards"></div>
-
-  <div class="tabs">
-    <div class="tab active" data-tab="matriz">Matriz por equipo</div>
-    <div class="tab" data-tab="eventos">Eventos (una fila por evento)</div>
-  </div>
 
   <div class="toolbar">
     <input type="search" id="q" placeholder="Buscar: equipo, serie, inventario, marca, servicio…">
@@ -324,17 +315,10 @@ function transform(rows){            // rows[0] = encabezado
 
 // ---- estado global ----
 let DATA = transform(RAW);
-let TAB = "matriz";
 let sortKey=null, sortDir=1;
 const $=id=>document.getElementById(id);
 
 // ---- definición de columnas ----
-const MATRIX_COLS=[
-  ["id","ID"],["inventario","N° Inv."],["equipo","Equipo"],["servicio","Servicio"],
-  ["unidad","Unidad"],["marca","Marca"],["serie","N° Serie"]
-];
-const COUNT_COLS=[["si","Sí","cnt-ok"],["reprog","C1–C8","cnt-reprog"],["no","No","cnt-no"],
-  ["nu","NU","cnt-nu"],["baja","Baja","cnt-baja"],["noreg","No reg.","cnt-noreg"]];
 const EVENT_COLS=[
   ["id","ID"],["carpeta","N° Carpeta"],["inventario","N° Inventario"],["equipo","Nombre del Equipo"],
   ["servicio","Servicio"],["unidad","Unidad"],["ubicacion","Ubicación"],["procedencia","Procedencia"],
@@ -379,26 +363,8 @@ function resultMatchesEvent(ev,resFilter){
   if(resFilter.startsWith("No reg")) return !ev.resultado && ev.mesIdx<=REF_MONTH;
   return true;
 }
-function countKeyToFilter(){ // map result filter to equipo count key (for matrix)
-  const r=$("f_resultado").value;
-  if(r.startsWith("Si")) return "si"; if(r.startsWith("C1")) return "reprog";
-  if(r.startsWith("No (")) return "no"; if(r.startsWith("NU")) return "nu";
-  if(r.startsWith("Baja")) return "baja"; if(r.startsWith("No reg")) return "noreg";
-  return null;
-}
 
-// ---- filtrado por vista ----
-function filteredEquipos(){
-  const f=filters(); const ck=countKeyToFilter();
-  return DATA.equipos.filter(e=>{
-    if(f.servicio && e.servicio!==f.servicio) return false;
-    if(f.clasif && e.clasif!==f.clasif) return false;
-    if(!matchEquipoText(e,f.q)) return false;
-    if(f.mes){ const mi=MESES.indexOf(f.mes); const c=e.meses[mi]; if(!c.p && !c.r) return false; }
-    if(ck && e.counts[ck]<=0) return false;
-    return true;
-  });
-}
+// ---- filtrado ----
 function filteredEvents(){
   const f=filters();
   return DATA.events.filter(ev=>{
@@ -423,48 +389,15 @@ function sortRows(rows,getter){
 }
 
 // ---- render encabezado ----
-function renderHead(cols, extraMonths){
+function renderHead(cols){
   let h="";
   cols.forEach(([k,l])=>{ h+='<th data-k="'+k+'">'+esc(l)+' <span class="ar">↕</span></th>'; });
-  if(extraMonths){
-    MES_ABR.forEach((m,i)=>{ h+='<th data-k="m'+i+'" title="'+MESES[i]+'">'+m+'</th>'; });
-    COUNT_COLS.forEach(([k,l])=>{ h+='<th data-k="c_'+k+'">'+l+' <span class="ar">↕</span></th>'; });
-  }
   $("head").innerHTML=h;
-}
-
-// ---- render matriz ----
-function renderMatrix(){
-  renderHead(MATRIX_COLS,true);
-  const get=(e,k)=>{ if(k.startsWith("c_")) return e.counts[k.slice(2)];
-    if(k[0]==="m"&&/^m\d+$/.test(k)) return e.meses[+k.slice(1)].token; return e[k]; };
-  let rows=sortRows(filteredEquipos(),get);
-  const frag=[];
-  for(const e of rows){
-    let h="<tr>";
-    MATRIX_COLS.forEach(([k])=>{
-      const cls=(k==="serie"||k==="inventario")?"mono ":"";
-      const clk=(k==="id"||k==="equipo")?"click":"";
-      const dataAttr=(k==="id"||k==="equipo")?(' data-eq="'+esc(e.id)+'"'):"";
-      h+='<td class="'+cls+clk+'"'+dataAttr+'>'+(esc(e[k])||'<span class=muted>—</span>')+'</td>';
-    });
-    e.meses.forEach((c,i)=>{
-      h+='<td class="mcell '+(c.key?("c-"+c.key):"")+'" data-eq="'+esc(e.id)+'" data-mi="'+i+'" title="'+esc(c.label)+'">'+esc(c.token)+'</td>';
-    });
-    COUNT_COLS.forEach(([k,,cc])=>{
-      const v=e.counts[k];
-      if(v>0) h+='<td><span class="pill '+cc+'" data-eq="'+esc(e.id)+'" data-ct="'+k+'">'+v+'</span></td>';
-      else h+='<td><span class="pill zero">0</span></td>';
-    });
-    h+="</tr>"; frag.push(h);
-  }
-  $("body").innerHTML=frag.join("");
-  $("count").textContent=rows.length+" de "+DATA.equipos.length+" equipos";
 }
 
 // ---- render eventos ----
 function renderEventos(){
-  renderHead(EVENT_COLS,false);
+  renderHead(EVENT_COLS);
   const get=(e,k)=> k==="mes"? e.mesIdx : e[k];
   let rows=sortRows(filteredEvents(),get);
   const frag=[];
@@ -486,10 +419,7 @@ function renderEventos(){
   $("count").textContent=rows.length+" de "+DATA.events.length+" eventos";
 }
 
-function render(){
-  if(TAB==="matriz") renderMatrix();
-  else renderEventos();
-}
+function render(){ renderEventos(); }
 
 // ---- tarjetas resumen (cliqueables) ----
 function renderCards(){
@@ -515,21 +445,6 @@ function openModal(title, bodyHtml){
 function closeModal(){ $("ov").classList.remove("show"); }
 function kv(pairs){ return '<div class="kv">'+pairs.map(p=>'<b>'+esc(p[0])+'</b><span>'+(esc(p[1])||'—')+'</span>').join("")+'</div>'; }
 
-function modalEquipo(id){
-  const e=DATA.equipos.find(x=>x.id===id); if(!e) return;
-  let body=kv([["ID",e.id],["N° Carpeta",e.carpeta],["N° Inventario",e.inventario],
-    ["Equipo",e.equipo],["Servicio",e.servicio],["Unidad",e.unidad],["Ubicación",e.ubicacion],
-    ["Procedencia",e.procedencia],["Marca",e.marca],["Modelo",e.modelo],["N° de Serie",e.serie],
-    ["Año Instalación",e.anio],["Vida Útil Residual",e.vida_util],["Clasificación",e.clasif],
-    ["Frecuencia MP",e.frecuencia],["Pendientes",e.pendientes],["Última actualización",e.ultimaActualizacion]]);
-  body+="<h4>Línea de tiempo "+YEAR+"</h4><div class='tl'>";
-  e.meses.forEach((c,i)=>{
-    body+="<div class='mo "+(c.key?("c-"+c.key):"")+"'><div class='mn'>"+MES_ABR[i]+"</div>"+
-      "<div class='mt'>"+(esc(c.token)||"·")+"</div><div class='ml'>"+esc(c.label||"")+"</div></div>";
-  });
-  body+="</div>";
-  openModal(e.equipo+" — "+(e.inventario||e.serie||("ID "+e.id)), body);
-}
 function modalEvento(ev){
   openModal((ev.equipo||"Evento")+" — "+ev.mes+" "+YEAR, kv([
     ["ID",ev.id],["N° Carpeta",ev.carpeta],["N° Inventario",ev.inventario],["Equipo",ev.equipo],
@@ -541,25 +456,6 @@ function modalEvento(ev){
     ["Fecha de Ejecución",ev.fechaEjec],["Estado del Equipo",ev.estadoTxt],
     ["Cant. Pendientes",ev.pendientes],["Última Actualización",ev.ultimaActualizacion]]));
 }
-function modalListaCount(id, ct){
-  const e=DATA.equipos.find(x=>x.id===id); if(!e) return;
-  const evs=DATA.events.filter(ev=>{
-    if(ev.id!==id) return false;
-    if(ct==="si") return REALIZADOS[ev.resultado];
-    if(ct==="reprog") return !!CAUSAS[ev.resultado];
-    if(ct==="no") return ev.resultado==="No";
-    if(ct==="nu") return ev.resultado==="NU";
-    if(ct==="baja") return ev.resultado==="Baja";
-    if(ct==="noreg") return !ev.resultado && ev.mesIdx<=REF_MONTH;
-    return false;
-  });
-  let body="<table style='width:100%;font-size:12.5px'><thead><tr><th>Mes</th><th>Programa</th><th>Resultado</th><th>Estado</th></tr></thead><tbody>";
-  evs.forEach(ev=>{ body+="<tr><td>"+ev.mes+"</td><td>"+esc(ev.programa)+"</td><td>"+
-    (esc(ev.resultado)||"—")+"</td><td><span class='badge b-"+ev.estadoKey+"'>"+esc(ev.estadoTxt)+"</span></td></tr>"; });
-  body+="</tbody></table>";
-  const lbl=(COUNT_COLS.find(c=>c[0]===ct)||["","" ])[1];
-  openModal(e.equipo+" — "+lbl+" ("+evs.length+")", body);
-}
 
 // ---- eventos de UI ----
 $("head").addEventListener("click",ev=>{
@@ -570,25 +466,13 @@ $("head").addEventListener("click",ev=>{
 });
 $("body").addEventListener("click",ev=>{
   const evRow=ev.target.closest("tr[data-ev]");
-  const pill=ev.target.closest(".pill[data-ct]");
-  const mcell=ev.target.closest(".mcell[data-mi]");
-  const idc=ev.target.closest("[data-eq]");
-  if(pill){ modalListaCount(pill.dataset.eq, pill.dataset.ct); return; }
-  if(mcell){ const e=DATA.equipos.find(x=>x.id===mcell.dataset.eq); const i=+mcell.dataset.mi;
-    const ce=DATA.events.find(x=>x.id===mcell.dataset.eq && x.mesIdx===i+1);
-    if(ce) modalEvento(ce); else modalEquipo(mcell.dataset.eq); return; }
-  if(TAB==="eventos" && evRow){ modalEvento(window.__evRows[+evRow.dataset.ev]); return; }
-  if(idc && idc.dataset.eq && TAB==="matriz"){ modalEquipo(idc.dataset.eq); return; }
+  if(evRow){ modalEvento(window.__evRows[+evRow.dataset.ev]); }
 });
 $("cards").addEventListener("click",ev=>{
   const c=ev.target.closest(".card"); if(!c) return;
   const rf=c.dataset.rf;
   if(rf){ $("f_resultado").value=rf; render(); }
 });
-document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
-  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-  t.classList.add("active"); TAB=t.dataset.tab; sortKey=null; render();
-}));
 ["q","f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).addEventListener("input",render));
 $("clear").addEventListener("click",()=>{ $("q").value="";
   ["f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).value=""); sortKey=null; render(); });
@@ -626,24 +510,13 @@ $("file").addEventListener("change",ev=>{
   ev.target.value="";
 });
 
-// ---- exportar CSV (vista activa) ----
+// ---- exportar CSV (eventos filtrados) ----
 $("csv").addEventListener("click",()=>{
-  let headers, lines=[];
-  if(TAB==="matriz"){
-    headers=MATRIX_COLS.map(c=>c[1]).concat(MES_ABR).concat(COUNT_COLS.map(c=>c[1]));
-    lines.push(headers.join(";"));
-    filteredEquipos().forEach(e=>{
-      const r=MATRIX_COLS.map(c=>csv(e[c[0]])).concat(e.meses.map(m=>csv(m.token)))
-        .concat(COUNT_COLS.map(c=>e.counts[c[0]]));
-      lines.push(r.join(";"));
-    });
-  }else{
-    headers=EVENT_COLS.map(c=>c[1]); lines.push(headers.join(";"));
-    filteredEvents().forEach(d=>{ lines.push(EVENT_COLS.map(c=>csv(c[0]==="estadoTxt"?d.estadoTxt:d[c[0]])).join(";")); });
-  }
+  const lines=[EVENT_COLS.map(c=>c[1]).join(";")];
+  filteredEvents().forEach(d=>{ lines.push(EVENT_COLS.map(c=>csv(c[0]==="estadoTxt"?d.estadoTxt:d[c[0]])).join(";")); });
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8;"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-  a.download="reporte_mp_"+YEAR+"_"+TAB+".csv"; a.click();
+  a.download="reporte_mp_"+YEAR+"_eventos.csv"; a.click();
 });
 function csv(v){ v=(v==null)?"":String(v); return (/[;"\n]/.test(v))?'"'+v.replace(/"/g,'""')+'"':v; }
 
@@ -662,8 +535,8 @@ function renderNotes(){
   const mesRef = REF_MONTH>=1&&REF_MONTH<=12 ? MESES[REF_MONTH-1].toLowerCase() : "—";
   $("notes").innerHTML=
     "<p><b>Fuente:</b> hoja <code>Registro_MP-2026</code> de <code>"+esc(SRC)+"</code> (encabezado fila 7, columnas B–AQ, ignorando Q «Observación» y S «Responsable MP»).</p>"+
-    "<p><b>Una columna por mes</b> en la vista matriz: cada celda muestra el Resultado (R) si existe, o el Programa (P) en caso contrario, coloreado por categoría. <b>Clic</b> en cualquier celda, conteo o equipo para ver el detalle.</p>"+
-    "<p><b>Columnas de conteo (por equipo):</b> <b>Sí</b> = realizadas (Si/Si-RA); <b>C1–C8</b> = reprogramadas; <b>No</b>, <b>NU</b>, <b>Baja</b> = según resultado; <b>No registrado</b> = meses transcurridos (enero a "+mesRef+" "+YEAR+") con MP programada y sin resultado registrado.</p>"+
+    "<p><b>Una fila por evento</b>: cada combinación de equipo × mes con programación (P) y/o resultado (R). <b>Clic</b> en cualquier fila para ver el detalle completo del evento.</p>"+
+    "<p><b>No registrado</b> (resultado vacío) = meses transcurridos (enero a "+mesRef+" "+YEAR+") con MP programada y sin resultado registrado; se refleja en «Cant. Pend.» y en el estado «Pendiente (sin registro)».</p>"+
     "<p><b>N° de Serie / Inventario:</b> se conservan tal cual, respetando ceros a la izquierda.</p>"+
     "<p><b>Fecha de Ejecución:</b> el registro es a nivel de mes; se muestra el mes cuando el resultado es Si/Si-RA.</p>"+
     "<p><b>Estado del Equipo</b> (vista eventos): derivado del código de resultado; si sólo hay programación → «Pendiente» (mes transcurrido) o «Programada» (futuro).</p>"+
