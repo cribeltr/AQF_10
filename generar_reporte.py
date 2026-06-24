@@ -47,9 +47,6 @@ LAST_COL = 44           # columnas A..AR (1..44)
 # ---- Diccionarios de códigos (se inyectan al JS) ----------------------------
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-MES_ABR = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
-           "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-
 PROGRAMA_LABEL = {
     "X": "MP Programada",
     "R": "MP Reprogramada",
@@ -139,7 +136,6 @@ def main():
         .replace("/*__SHEETJS__*/", js_safe(sheetjs))
         .replace("/*__DATA__*/", data_json)
         .replace("/*__MESES__*/", json.dumps(MESES, ensure_ascii=False))
-        .replace("/*__MES_ABR__*/", json.dumps(MES_ABR, ensure_ascii=False))
         .replace("/*__PROG__*/", json.dumps(PROGRAMA_LABEL, ensure_ascii=False))
         .replace("/*__CAUSAS__*/", json.dumps(CAUSAS, ensure_ascii=False))
         .replace("/*__RESULT__*/", json.dumps(RESULTADO_LABEL, ensure_ascii=False))
@@ -170,7 +166,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     --brand:#1565c0; --brand-dark:#0d3c75;
     --ok:#1b873f; --ok-bg:#e6f6ec; --reprog:#8a6d00; --reprog-bg:#fff7d6;
     --no:#c01525; --no-bg:#fde7e7; --nu:#9a4a00; --nu-bg:#ffe9d6;
-    --baja:#344054; --baja-bg:#dfe3ea; --noreg:#b54708; --noreg-bg:#ffeede;
+    --baja:#344054; --noreg:#b54708; --noreg-bg:#ffeede;
     --prog:#155e9c; --prog-bg:#e6f0fb; --fs:#c01525; --fs-bg:#fde7e7;
   }
   *{box-sizing:border-box}
@@ -211,18 +207,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   tbody td{padding:6px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
   tbody tr:hover{background:#f6f9fd}
   td.mono{font-family:Consolas,"Courier New",monospace}
-  td.click,.clk{cursor:pointer}
-  td.click:hover{background:#e6f0fb;outline:1px solid var(--brand)}
-  .mcell{text-align:center;font-weight:700;cursor:pointer;min-width:34px}
-  .mcell:hover{outline:2px solid var(--brand);outline-offset:-2px}
-  .c-ok{background:var(--ok-bg);color:var(--ok)}
-  .c-reprog{background:var(--reprog-bg);color:var(--reprog)}
-  .c-no{background:var(--no-bg);color:var(--no)}
-  .c-nu{background:var(--nu-bg);color:var(--nu)}
-  .c-baja{background:var(--baja-bg);color:var(--baja)}
-  .c-noreg{background:var(--noreg-bg);color:var(--noreg)}
-  .c-prog{background:var(--prog-bg);color:var(--prog)}
-  .c-fs{background:var(--fs-bg);color:var(--fs)}
+  tr.clk{cursor:pointer}
   .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
   .b-ok{color:var(--ok);background:var(--ok-bg)}
   .b-reprog{color:var(--reprog);background:var(--reprog-bg)}
@@ -255,11 +240,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .modal .body{padding:16px 20px}
   .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px;margin-bottom:12px}
   .kv b{color:var(--muted);font-weight:600}
-  .tl{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:8px}
-  .tl .mo{border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}
-  .tl .mo .mn{font-size:11px;color:var(--muted)}
-  .tl .mo .mt{font-size:16px;font-weight:700;margin:3px 0}
-  .tl .mo .ml{font-size:10px;line-height:1.2}
   .legend{margin-top:20px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:2px 16px}
   .legend>summary{cursor:pointer;font-weight:600;padding:11px 0;color:var(--brand-dark);font-size:14px}
   .lg{display:flex;flex-wrap:wrap;gap:24px;padding:6px 0 14px}
@@ -271,7 +251,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     background:#eef3fb;padding:1px 7px;border-radius:5px}
   .chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;
     cursor:pointer;border:1px solid transparent;margin:2px}
-  .chip.off{opacity:.85}
   .notes{font-size:12.2px;color:var(--muted);line-height:1.6}
   .notes b{color:var(--ink)}
   footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:22px}
@@ -312,12 +291,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <summary>Leyenda de códigos, filtros rápidos y notas metodológicas</summary>
     <div style="padding:4px 0 10px">
       <b>Filtros rápidos por resultado (clic):</b><br>
-      <span class="chip cnt-ok"   data-r="Si">Sí · Realizada</span>
-      <span class="chip cnt-reprog" data-r="__C__">C1–C8 · Reprogramada</span>
-      <span class="chip cnt-no"   data-r="No">No realizada</span>
-      <span class="chip cnt-nu"   data-r="NU">No ubicable</span>
+      <span class="chip cnt-ok"   data-r="Si (Realizada)">Sí · Realizada</span>
+      <span class="chip cnt-reprog" data-r="C1–C8 (Reprogramada)">C1–C8 · Reprogramada</span>
+      <span class="chip cnt-no"   data-r="No (No realizada)">No realizada</span>
+      <span class="chip cnt-nu"   data-r="NU (No ubicable)">No ubicable</span>
       <span class="chip cnt-baja" data-r="Baja">Baja</span>
-      <span class="chip cnt-noreg" data-r="__NOREG__">No registrado</span>
+      <span class="chip cnt-noreg" data-r="No registrado">No registrado</span>
     </div>
     <div class="lg">
       <div><h4>Programa (P)</h4><table id="lg-prog"></table>
@@ -339,7 +318,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 // ---- datos crudos por defecto (hoja Registro_MP-2026, encabezado primero) ----
 const RAW = /*__DATA__*/;
 const MESES = /*__MESES__*/;
-const MES_ABR = /*__MES_ABR__*/;
 const PROGRAMA_LABEL = /*__PROG__*/;
 const CAUSAS = /*__CAUSAS__*/;
 const RESULTADO_LABEL = /*__RESULT__*/;
@@ -361,27 +339,7 @@ const REF_MONTH = refMonth();
 function txt(v){ if(v===null||v===undefined) return ""; return String(v).trim(); }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
-// ---- celda de mes: clave de color, token visible y etiqueta ----
-function cellInfo(p,r,mesIdx){
-  let key="",token="",label="";
-  if(r){
-    token=r;
-    label=RESULTADO_LABEL[r]||r;
-    if(REALIZADOS[r]) key="ok";
-    else if(CAUSAS[r]) key="reprog";
-    else if(r==="No") key="no";
-    else if(r==="NU") key="nu";
-    else if(r==="Baja") key="baja";
-    else if(r==="FS") key="fs";
-    else key="info";
-    if(p) label=(PROGRAMA_LABEL[p]||p)+" → "+label;
-  } else if(p){
-    token=p;
-    if(mesIdx<=REF_MONTH){ key="noreg"; label=(PROGRAMA_LABEL[p]||p)+" — sin registro de resultado"; }
-    else { key="prog"; label=(PROGRAMA_LABEL[p]||p)+" — programada (mes futuro)"; }
-  }
-  return {key,token,label};
-}
+// ---- estado del equipo derivado del resultado del evento ----
 function estadoInfo(p,r,mesIdx){
   if(r && ESTADO[r]) return {key:ESTADO[r][0],txt:ESTADO[r][1]};
   if(r) return {key:"info",txt:r};
@@ -399,7 +357,7 @@ function transform(rows){            // rows[0] = encabezado
     const ident={};
     for(const k in COL) ident[k]=txt(row[COL[k]]);
     // placeholder "0" => vacío en columnas no identificadoras
-    ["carpeta","servicio","unidad","ubicacion","procedencia","enu_baja","frecuencia"]
+    ["carpeta","inventario","servicio","unidad","ubicacion","procedencia","enu_baja","frecuencia"]
       .forEach(k=>{ if(ident[k]==="0") ident[k]=""; });
     if(!ident.equipo && !ident.serie && !ident.inventario) continue;
 
@@ -423,11 +381,8 @@ function transform(rows){            // rows[0] = encabezado
     }
     const ultima = ultimaIdx>=0 ? (MESES[ultimaIdx]+" "+YEAR) : "";
 
-    const mesesCell=[];
     for(let m=0;m<12;m++){
       const [p,r]=meses[m];
-      const ci=cellInfo(p,r,m+1);
-      mesesCell.push({p,r,mesIdx:m+1,key:ci.key,token:ci.token,label:ci.label});
       if(!p && !r) continue;
       const es=estadoInfo(p,r,m+1);
       events.push(Object.assign({}, ident, {
@@ -438,7 +393,7 @@ function transform(rows){            // rows[0] = encabezado
         pendientes:pend, ultimaActualizacion:ultima
       }));
     }
-    equipos.push(Object.assign({}, ident, {meses:mesesCell, counts, pendientes:pend, ultimaActualizacion:ultima}));
+    equipos.push(Object.assign({}, ident, {counts, pendientes:pend, ultimaActualizacion:ultima}));
   }
   const stats={
     eventos:events.length,
@@ -589,7 +544,7 @@ function modalEvento(ev){
     ["Servicio",ev.servicio],["Unidad",ev.unidad],["Ubicación",ev.ubicacion],["Procedencia",ev.procedencia],
     ["Marca",ev.marca],["Modelo",ev.modelo],["N° de Serie",ev.serie],["Año Instalación",ev.anio],
     ["Vida Útil Residual",ev.vida_util],["Clasificación",ev.clasif],["ENU / Baja",ev.enu_baja],
-    ["Mes",ev.mes+" "+YEAR],["Programa",ev.programa+" — "+ev.programaLabel],
+    ["Mes",ev.mes+" "+YEAR],["Programa",ev.programa?(ev.programa+" — "+ev.programaLabel):"—"],
     ["Resultado",(ev.resultado||"—")+(ev.resultado?(" — "+ev.resultadoLabel):"")],
     ["Fecha de Ejecución",ev.fechaEjec],["Estado del Equipo",ev.estadoTxt],
     ["Cant. Pendientes",ev.pendientes],["Última Actualización",ev.ultimaActualizacion]]));
@@ -618,12 +573,9 @@ $("m-x").addEventListener("click",closeModal);
 $("ov").addEventListener("click",ev=>{ if(ev.target===$("ov")) closeModal(); });
 document.addEventListener("keydown",ev=>{ if(ev.key==="Escape") closeModal(); });
 
-// filtros rápidos (chips)
+// filtros rápidos (chips): data-r contiene el valor exacto del filtro «Resultado»
 document.querySelectorAll(".chip").forEach(ch=>ch.addEventListener("click",()=>{
-  const r=ch.dataset.r;
-  const map={"Si":"Si (Realizada)","__C__":"C1–C8 (Reprogramada)","No":"No (No realizada)",
-    "NU":"NU (No ubicable)","Baja":"Baja","__NOREG__":"No registrado"};
-  $("f_resultado").value=map[r]||""; render();
+  $("f_resultado").value=ch.dataset.r||""; render();
   window.scrollTo({top:0,behavior:"smooth"});
 }));
 
@@ -644,6 +596,7 @@ $("file").addEventListener("change",ev=>{
       toast("Datos actualizados desde «"+file.name+"»: "+DATA.stats.eventos+" eventos / "+DATA.stats.equipos+" equipos.");
     }catch(err){ toast("Error al leer el archivo: "+err.message); }
   };
+  rd.onerror=()=>toast("No se pudo leer el archivo seleccionado.");
   rd.readAsArrayBuffer(file);
   ev.target.value="";
 });
