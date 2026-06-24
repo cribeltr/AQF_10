@@ -1,107 +1,59 @@
 # -*- coding: utf-8 -*-
 """
-Generador del Reporte de Mantenciones Preventivas (MP) 2026
-============================================================
+Generador del Reporte interactivo de Mantenciones Preventivas (MP) 2026
+=======================================================================
 
-Lee el archivo ``ProgramacionMP2026.xlsm`` y genera un archivo HTML autónomo
-(``Reporte_MP_2026.html``) en el que se produce **una fila por evento de
-mantención**, es decir, una fila por cada combinación de (equipo × mes) que
-tenga programación y/o resultado registrado.
+Lee ``ProgramacionMP2026.xlsm`` y genera ``Reporte_MP_2026.html``: una
+aplicación HTML autónoma (un solo archivo) que:
 
-Cada fila contiene los campos de la base de datos del equipo más los campos
-del evento:
+* **Importa el .xlsm en el navegador** (botón «Importar .xlsm») y se actualiza
+  en vivo — usa la librería SheetJS embebida, sin conexión a internet.
+* Muestra una **vista matriz por equipo** con **una columna por mes** y
+  columnas de conteo por resultado: **Sí, C1–C8, No, NU, Baja y No registrado**.
+* Muestra una **vista por evento** (una fila por equipo × mes con actividad).
+* Es **totalmente cliqueable**: celdas de mes, conteos, equipos y filas abren
+  fichas de detalle; encabezados ordenan; tarjetas y leyenda filtran.
 
-    ID, N° de Carpeta, N° de Inventario, Nombre del Equipo, Servicio, Unidad,
-    Ubicación, Procedencia, Marca, Modelo, N° de Serie, Año de Instalación,
-    Vida Útil Residual, Clasificación, ENU / Baja, Mes, Programa, Resultado,
-    Fecha de Ejecución, Estado del Equipo, Cantidad de pendientes,
-    Última actualización.
+Diseño clave
+------------
+Los datos del .xlsm (hoja ``Registro_MP-2026``) se incrustan como filas crudas
+y TODA la transformación ocurre en JavaScript (función ``transform``). Así, los
+datos por defecto y los datos importados pasan exactamente por la misma lógica,
+garantizando resultados idénticos.
 
-Fuente de datos
----------------
-Se utiliza la hoja ``Registro_MP-2026`` como fuente única de verdad, porque
-contiene tanto la subcolumna de Programa (P) como la de Resultado (R) para los
-doce meses. (Su columna P coincide en un 99,99 % con la programación de la hoja
-``PMP_2026``.) Los datos se leen desde la fila 8 (encabezado en la fila 7),
-columnas B a AQ, ignorando las columnas Q (Observación) y S (Responsable MP),
-tal como indica la especificación.
-
-Números de serie / inventario
-------------------------------
-Se conservan exactamente como están registrados (son texto en el origen), de
-modo que se respetan los ceros a la izquierda (p. ej. "0024" no se transforma
-en "24").
+Se conservan los N° de Serie / Inventario tal cual (texto), respetando los
+ceros a la izquierda.
 """
 
 from __future__ import annotations
 
 import datetime
-import html
 import json
 import os
 
 import openpyxl
 
-# --------------------------------------------------------------------------- #
-# Configuración
-# --------------------------------------------------------------------------- #
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_XLSM = os.path.join(BASE_DIR, "data", "ProgramacionMP2026.xlsm")
+VENDOR_SHEETJS = os.path.join(BASE_DIR, "vendor", "xlsx.full.min.js")
 OUTPUT_HTML = os.path.join(BASE_DIR, "Reporte_MP_2026.html")
 SHEET = "Registro_MP-2026"
-
-# Fecha de referencia para clasificar meses transcurridos vs. futuros y para
-# calcular la "Cantidad de pendientes". Corresponde a la fecha de generación.
-REF_DATE = datetime.date(2026, 6, 24)
-CURRENT_MONTH = REF_DATE.month  # 6 = junio
 YEAR = 2026
 
-# Encabezado en la fila 7, datos desde la fila 8.
-HEADER_ROW = 7
-FIRST_DATA_ROW = 8
+# Rango: encabezado en la fila 7 de la planilla; se incrustan las columnas
+# A..AR (índices 0..43, base 0) desde la fila 7 hacia abajo.
+HEADER_ROW = 7          # 1-based (openpyxl)
+LAST_COL = 44           # columnas A..AR (1..44)
 
-# Mapa de columnas de identidad (índices de columna de openpyxl, 1-based).
-# Se ignoran Q (17, Observación) y S (19, Responsable MP).
-IDENT_COLS = {
-    "id":           2,   # B  - ID
-    "carpeta":      3,   # C  - N° Carpeta
-    "inventario":   4,   # D  - N° Inventario
-    "equipo":       5,   # E  - Equipo
-    "servicio":     6,   # F  - Servicio
-    "unidad":       7,   # G  - Unidad
-    "ubicacion":    8,   # H  - Ubicación
-    "procedencia":  9,   # I  - Procedencia
-    "marca":        10,  # J  - Marca
-    "modelo":       11,  # K  - Modelo
-    "serie":        12,  # L  - Serie
-    "anio":         13,  # M  - Año Instalación
-    "vida_util":    14,  # N  - Vida Útil Residual
-    "clasif":       15,  # O  - Clasificación
-    "enu_baja":     16,  # P  - ENU / Baja
-    "frecuencia":   18,  # R  - Frecuencia MP
-}
-
-# Doce meses: para cada mes, columna P (Programa) y columna R (Resultado).
-# T=20,U=21 (Ene) ... AP=42,AQ=43 (Dic).
+# ---- Diccionarios de códigos (se inyectan al JS) ----------------------------
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 MES_ABR = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
            "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-MONTH_P_COLS = list(range(20, 43, 2))   # 20,22,...,42
-MONTH_R_COLS = list(range(21, 44, 2))   # 21,23,...,43
-
-# Columnas placeholder donde el literal "0" significa "vacío".
-PLACEHOLDER_ZERO = {"carpeta", "inventario", "servicio", "unidad",
-                    "ubicacion", "procedencia", "enu_baja", "frecuencia"}
-
-# --------------------------------------------------------------------------- #
-# Diccionarios de códigos (según especificación)
-# --------------------------------------------------------------------------- #
 
 PROGRAMA_LABEL = {
-    "X":  "MP Programada",
-    "R":  "MP Reprogramada",
+    "X": "MP Programada",
+    "R": "MP Reprogramada",
     "RA": "MP Reprogramada de año anterior",
     "PM": "Puesta en Marcha",
 }
@@ -118,49 +70,36 @@ CAUSAS = {
 }
 
 RESULTADO_LABEL = {
-    "Si":    "MP Preventiva Realizada",
+    "Si": "MP Preventiva Realizada",
     "Si-RA": "MP de año anterior realizada",
-    "FS":    "Fuera de Servicio",
-    "No":    "No Realizada",
-    "NU":    "No Ubicable",
-    "Baja":  "Equipo Dado de Baja",
+    "FS": "Fuera de Servicio",
+    "No": "No Realizada",
+    "NU": "No Ubicable",
+    "Baja": "Equipo Dado de Baja",
 }
 for _c, _d in CAUSAS.items():
     RESULTADO_LABEL[_c] = f"Reprogramada — {_d}"
 
-# Estado del equipo derivado del código de resultado.
-# (clave_estado, etiqueta visible)
-ESTADO_POR_RESULTADO = {
-    "Si":    ("ok",       "Operativo (MP realizada)"),
-    "Si-RA": ("ok",       "Operativo (MP año anterior realizada)"),
-    "Baja":  ("baja",     "Dado de baja"),
-    "FS":    ("critico",  "Fuera de servicio"),
-    "NU":    ("alerta",   "No ubicable"),
-    "No":    ("critico",  "MP no realizada"),
-    "C1":    ("aviso",    "En uso clínico (no liberable)"),
-    "C2":    ("alerta",   "En servicio técnico"),
-    "C3":    ("critico",  "No operativo (espera repuestos)"),
-    "C4":    ("info",     "En préstamo a otra institución"),
-    "C5":    ("aviso",    "Operativo (sin HH SEC)"),
-    "C6":    ("aviso",    "Operativo (sin HH externo)"),
-    "C7":    ("aviso",    "Operativo (ausencia SEC)"),
-    "C8":    ("aviso",    "Operativo (contingencia)"),
+# Estado del equipo derivado del código de resultado: r -> [claveColor, texto]
+ESTADO = {
+    "Si":    ["ok",     "Operativo (MP realizada)"],
+    "Si-RA": ["ok",     "Operativo (MP año anterior realizada)"],
+    "Baja":  ["baja",   "Dado de baja"],
+    "FS":    ["fs",     "Fuera de servicio"],
+    "NU":    ["nu",     "No ubicable"],
+    "No":    ["no",     "MP no realizada"],
+    "C1":    ["reprog", "En uso clínico (no liberable)"],
+    "C2":    ["reprog", "En servicio técnico"],
+    "C3":    ["reprog", "No operativo (espera repuestos)"],
+    "C4":    ["reprog", "En préstamo a otra institución"],
+    "C5":    ["reprog", "Operativo (sin HH SEC)"],
+    "C6":    ["reprog", "Operativo (sin HH externo)"],
+    "C7":    ["reprog", "Operativo (ausencia SEC)"],
+    "C8":    ["reprog", "Operativo (contingencia)"],
 }
 
-# Resultados que cuentan como ejecución exitosa de la MP.
-REALIZADOS = {"Si", "Si-RA"}
-
-
-# --------------------------------------------------------------------------- #
-# Utilidades de lectura
-# --------------------------------------------------------------------------- #
 
 def cell_text(value) -> str:
-    """Convierte un valor de celda a texto limpio, preservando el contenido.
-
-    Importante: NO altera números de serie / inventario; los ceros a la
-    izquierda se preservan porque en el origen son cadenas de texto.
-    """
     if value is None:
         return ""
     if isinstance(value, float) and value.is_integer():
@@ -168,582 +107,714 @@ def cell_text(value) -> str:
     return str(value).strip()
 
 
-def clean_field(key: str, value) -> str:
-    """Limpia un campo de identidad. En columnas placeholder, "0" => vacío."""
-    txt = cell_text(value)
-    if key in PLACEHOLDER_ZERO and txt == "0":
-        return ""
-    return txt
-
-
-def last_data_row(ws) -> int:
-    last = HEADER_ROW
-    for r in range(FIRST_DATA_ROW, ws.max_row + 1):
-        if cell_text(ws.cell(row=r, column=IDENT_COLS["id"]).value):
-            last = r
-    return last
-
-
-# --------------------------------------------------------------------------- #
-# Construcción de eventos
-# --------------------------------------------------------------------------- #
-
-def build_events(xlsm_path: str):
-    wb = openpyxl.load_workbook(xlsm_path, data_only=True)
+def read_raw(xlsm_path: str):
+    """Devuelve filas crudas (lista de listas de texto), encabezado primero."""
+    wb = openpyxl.load_workbook(xlsm_path, data_only=True, read_only=True)
     ws = wb[SHEET]
-    last = last_data_row(ws)
-
-    events = []
-    equipos_con_eventos = set()
-
-    for r in range(FIRST_DATA_ROW, last + 1):
-        ident = {k: clean_field(k, ws.cell(row=r, column=c).value)
-                 for k, c in IDENT_COLS.items()}
-
-        # Saltar filas que no representan un equipo real (slot disponible).
-        if not ident["equipo"] and not ident["serie"] and not ident["inventario"]:
-            continue
-
-        # Leer los 12 pares (Programa, Resultado).
-        meses_pr = []
-        for i in range(12):
-            p = cell_text(ws.cell(row=r, column=MONTH_P_COLS[i]).value)
-            res = cell_text(ws.cell(row=r, column=MONTH_R_COLS[i]).value)
-            meses_pr.append((p, res))
-
-        # --- Agregados por equipo ---
-        # Cantidad de pendientes: meses transcurridos (Ene..mes actual) con
-        # programación y sin ejecución exitosa (resultado no en {Si, Si-RA}),
-        # excluyendo celdas dadas de baja.
-        pendientes = 0
-        ultima_idx = -1  # índice del mes más reciente con resultado registrado
-        tiene_baja = False
-        for i, (p, res) in enumerate(meses_pr):
-            if res:
-                ultima_idx = i
-            if res == "Baja":
-                tiene_baja = True
-            mes_num = i + 1
-            if p and mes_num <= CURRENT_MONTH:
-                if res not in REALIZADOS and res != "Baja":
-                    pendientes += 1
-
-        ultima_actualizacion = (
-            f"{MESES[ultima_idx]} {YEAR}" if ultima_idx >= 0 else ""
-        )
-
-        # --- Un evento por mes con programación o resultado ---
-        for i, (p, res) in enumerate(meses_pr):
-            if not p and not res:
-                continue
-            mes_num = i + 1
-            equipos_con_eventos.add(ident["id"])
-
-            # Fecha de ejecución: la fuente registra a nivel de mes. Si la MP
-            # fue realizada (Si / Si-RA), la ejecución ocurrió en ese mes.
-            if res in REALIZADOS:
-                fecha_ejec = f"{MESES[i]} {YEAR}"
-            else:
-                fecha_ejec = ""
-
-            # Estado del equipo.
-            if res in ESTADO_POR_RESULTADO:
-                estado_key, estado_txt = ESTADO_POR_RESULTADO[res]
-            elif res:  # resultado desconocido pero presente
-                estado_key, estado_txt = ("info", res)
-            else:
-                # Sólo programado, sin resultado.
-                if mes_num <= CURRENT_MONTH:
-                    estado_key, estado_txt = ("pendiente", "Pendiente")
-                else:
-                    estado_key, estado_txt = ("programado", "Programada")
-
-            programa_label = PROGRAMA_LABEL.get(p, p)
-            resultado_label = RESULTADO_LABEL.get(res, res)
-
-            events.append({
-                "id": ident["id"],
-                "carpeta": ident["carpeta"],
-                "inventario": ident["inventario"],
-                "equipo": ident["equipo"],
-                "servicio": ident["servicio"],
-                "unidad": ident["unidad"],
-                "ubicacion": ident["ubicacion"],
-                "procedencia": ident["procedencia"],
-                "marca": ident["marca"],
-                "modelo": ident["modelo"],
-                "serie": ident["serie"],
-                "anio": ident["anio"],
-                "vida_util": ident["vida_util"],
-                "clasif": ident["clasif"],
-                "enu_baja": ident["enu_baja"],
-                "mes": MESES[i],
-                "mes_idx": mes_num,
-                "programa": p,
-                "programa_label": programa_label,
-                "resultado": res,
-                "resultado_label": resultado_label,
-                "fecha_ejec": fecha_ejec,
-                "estado_key": estado_key,
-                "estado_txt": estado_txt,
-                "pendientes": pendientes,
-                "ultima_actualizacion": ultima_actualizacion,
-            })
-
-    stats = {
-        "total_eventos": len(events),
-        "total_equipos": len({e["id"] for e in events}),
-        "realizadas": sum(1 for e in events if e["resultado"] in REALIZADOS),
-        "reprogramadas": sum(1 for e in events if e["resultado"] in CAUSAS),
-        "pendientes_eventos": sum(
-            1 for e in events
-            if not e["resultado"] and e["mes_idx"] <= CURRENT_MONTH
-        ),
-        "programadas_total": sum(1 for e in events if e["programa"]),
-    }
-    return events, stats
+    rows = []
+    for r_idx, row in enumerate(ws.iter_rows(min_row=HEADER_ROW, max_col=LAST_COL,
+                                             values_only=True), start=HEADER_ROW):
+        rows.append([cell_text(v) for v in row])
+    # Recortar filas finales totalmente vacías.
+    while rows and not any(c for c in rows[-1]):
+        rows.pop()
+    return rows
 
 
-# --------------------------------------------------------------------------- #
-# Render HTML
-# --------------------------------------------------------------------------- #
-
-COLUMNS = [
-    ("id",                   "ID"),
-    ("carpeta",              "N° Carpeta"),
-    ("inventario",           "N° Inventario"),
-    ("equipo",               "Nombre del Equipo"),
-    ("servicio",             "Servicio"),
-    ("unidad",               "Unidad"),
-    ("ubicacion",            "Ubicación"),
-    ("procedencia",          "Procedencia"),
-    ("marca",                "Marca"),
-    ("modelo",               "Modelo"),
-    ("serie",                "N° de Serie"),
-    ("anio",                 "Año Inst."),
-    ("vida_util",            "Vida Útil Res."),
-    ("clasif",               "Clasificación"),
-    ("enu_baja",             "ENU / Baja"),
-    ("mes",                  "Mes"),
-    ("programa",             "Programa"),
-    ("resultado",            "Resultado"),
-    ("fecha_ejec",           "Fecha de Ejecución"),
-    ("estado_txt",           "Estado del Equipo"),
-    ("pendientes",           "Cant. Pendientes"),
-    ("ultima_actualizacion", "Última Actualización"),
-]
-
-
-def render_html(events, stats, xlsm_path: str) -> str:
-    data_json = json.dumps(events, ensure_ascii=False)
-    columns_json = json.dumps(COLUMNS, ensure_ascii=False)
-    gen_fecha = REF_DATE.strftime("%d-%m-%Y")
-    src_name = os.path.basename(xlsm_path)
-
-    causas_rows = "\n".join(
-        f"<tr><td><span class='code'>{c}</span></td><td>{html.escape(d)}</td></tr>"
-        for c, d in CAUSAS.items()
-    )
-    programa_rows = "\n".join(
-        f"<tr><td><span class='code'>{html.escape(c)}</span></td><td>{html.escape(d)}</td></tr>"
-        for c, d in PROGRAMA_LABEL.items()
-    )
-    resultado_rows = "\n".join(
-        f"<tr><td><span class='code'>{html.escape(c)}</span></td><td>{html.escape(d)}</td></tr>"
-        for c, d in [
-            ("Si", "Mantención Preventiva Realizada"),
-            ("C1–C8", "Mantención Preventiva Reprogramada (ver causales)"),
-            ("Si-RA", "Mantención de Año Anterior Realizada"),
-            ("FS", "Fuera de Servicio"),
-            ("No", "No Realizada"),
-            ("NU", "No Ubicable"),
-            ("Baja", "Equipo Dado de Baja"),
-        ]
-    )
-
-    return f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reporte Mantenciones Preventivas 2026 — H.H.H.A.</title>
-<style>
-  :root {{
-    --bg: #f4f6f9; --panel: #ffffff; --ink: #1f2733; --muted: #647084;
-    --line: #e3e8ef; --brand: #1565c0; --brand-dark: #0d3c75;
-    --ok: #1b873f; --ok-bg: #e7f6ec; --pend: #b54708; --pend-bg: #fff4e5;
-    --crit: #c01525; --crit-bg: #fdecec; --aviso: #8a6d00; --aviso-bg: #fff8db;
-    --info: #155e9c; --info-bg: #e7f1fb; --baja: #475467; --baja-bg: #eceef2;
-    --prog: #344054; --prog-bg: #eef1f5; --alerta:#9a4a00; --alerta-bg:#ffefe0;
-  }}
-  * {{ box-sizing: border-box; }}
-  body {{
-    margin: 0; background: var(--bg); color: var(--ink);
-    font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
-    font-size: 13px;
-  }}
-  header.top {{
-    background: linear-gradient(135deg, var(--brand-dark), var(--brand));
-    color: #fff; padding: 18px 24px;
-  }}
-  header.top h1 {{ margin: 0 0 4px; font-size: 20px; }}
-  header.top p {{ margin: 0; opacity: .9; font-size: 12.5px; }}
-  .wrap {{ padding: 16px 24px 60px; }}
-  .cards {{ display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }}
-  .card {{
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px 16px; min-width: 130px; flex: 1; box-shadow: 0 1px 2px rgba(16,24,40,.04);
-  }}
-  .card .n {{ font-size: 24px; font-weight: 700; color: var(--brand-dark); }}
-  .card .l {{ font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }}
-  .toolbar {{
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-    margin-bottom: 14px; position: sticky; top: 0; z-index: 20;
-    box-shadow: 0 1px 2px rgba(16,24,40,.04);
-  }}
-  .toolbar input[type=search], .toolbar select {{
-    padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px;
-    font-size: 13px; background: #fff; color: var(--ink);
-  }}
-  .toolbar input[type=search] {{ min-width: 240px; flex: 1; }}
-  .toolbar .count {{ margin-left: auto; color: var(--muted); font-size: 12px; }}
-  .btn {{
-    padding: 7px 12px; border: 1px solid var(--line); background: #fff;
-    border-radius: 7px; cursor: pointer; font-size: 12.5px; color: var(--ink);
-  }}
-  .btn:hover {{ background: #f0f4f9; }}
-  .table-scroll {{
-    overflow: auto; max-height: 70vh; border: 1px solid var(--line);
-    border-radius: 10px; background: var(--panel);
-  }}
-  table {{ border-collapse: collapse; width: 100%; font-size: 12.3px; }}
-  thead th {{
-    position: sticky; top: 0; background: #f0f3f8; color: var(--brand-dark);
-    text-align: left; padding: 9px 10px; border-bottom: 2px solid var(--line);
-    white-space: nowrap; cursor: pointer; user-select: none; z-index: 5;
-  }}
-  thead th:hover {{ background: #e6ecf5; }}
-  thead th .arrow {{ opacity: .4; font-size: 10px; }}
-  tbody td {{ padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }}
-  tbody tr:hover {{ background: #f7f9fc; }}
-  td.serie {{ font-family: "Consolas", "Courier New", monospace; }}
-  .badge {{
-    display: inline-block; padding: 2px 8px; border-radius: 999px;
-    font-size: 11px; font-weight: 600; white-space: nowrap;
-  }}
-  .b-ok {{ color: var(--ok); background: var(--ok-bg); }}
-  .b-pendiente {{ color: var(--pend); background: var(--pend-bg); }}
-  .b-programado {{ color: var(--prog); background: var(--prog-bg); }}
-  .b-critico {{ color: var(--crit); background: var(--crit-bg); }}
-  .b-aviso {{ color: var(--aviso); background: var(--aviso-bg); }}
-  .b-alerta {{ color: var(--alerta); background: var(--alerta-bg); }}
-  .b-info {{ color: var(--info); background: var(--info-bg); }}
-  .b-baja {{ color: #fff; background: var(--baja); }}
-  .pill {{
-    display:inline-block; min-width:20px; text-align:center; padding:1px 7px;
-    border-radius:999px; font-weight:600; font-size:11px;
-  }}
-  .pill.zero {{ color: var(--muted); background: #f0f2f5; }}
-  .pill.some {{ color: var(--pend); background: var(--pend-bg); }}
-  details.legend {{
-    margin-top: 22px; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 4px 16px;
-  }}
-  details.legend > summary {{
-    cursor: pointer; font-weight: 600; padding: 10px 0; color: var(--brand-dark);
-    font-size: 14px;
-  }}
-  .legend-grid {{ display: flex; flex-wrap: wrap; gap: 24px; padding: 8px 0 16px; }}
-  .legend-grid > div {{ flex: 1; min-width: 280px; }}
-  .legend h4 {{ margin: 6px 0; color: var(--brand-dark); }}
-  .legend table {{ width: 100%; font-size: 12px; }}
-  .legend td {{ padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: normal; }}
-  .code {{
-    font-family: "Consolas", monospace; font-weight: 700; color: var(--brand-dark);
-    background: #eef3fb; padding: 1px 7px; border-radius: 5px;
-  }}
-  .notes {{ font-size: 12.3px; color: var(--muted); line-height: 1.6; }}
-  .notes b {{ color: var(--ink); }}
-  footer {{ text-align:center; color:var(--muted); font-size:11.5px; margin-top:24px; }}
-  .muted {{ color: var(--muted); }}
-</style>
-</head>
-<body>
-<header class="top">
-  <h1>Programa de Mantención Preventiva de Equipos Médicos Críticos — 2026</h1>
-  <p>Hospital Hernán Henríquez Aravena · Una fila por evento de mantención (equipo × mes)</p>
-</header>
-
-<div class="wrap">
-  <div class="cards">
-    <div class="card"><div class="n">{stats['total_eventos']}</div><div class="l">Eventos</div></div>
-    <div class="card"><div class="n">{stats['total_equipos']}</div><div class="l">Equipos</div></div>
-    <div class="card"><div class="n">{stats['programadas_total']}</div><div class="l">Programadas</div></div>
-    <div class="card"><div class="n">{stats['realizadas']}</div><div class="l">Realizadas</div></div>
-    <div class="card"><div class="n">{stats['reprogramadas']}</div><div class="l">Reprogramadas</div></div>
-    <div class="card"><div class="n">{stats['pendientes_eventos']}</div><div class="l">Pendientes (Ene–Jun)</div></div>
-  </div>
-
-  <div class="toolbar">
-    <input type="search" id="q" placeholder="Buscar por equipo, serie, inventario, marca, servicio…">
-    <select id="f_servicio"><option value="">Servicio: todos</option></select>
-    <select id="f_mes"><option value="">Mes: todos</option></select>
-    <select id="f_programa"><option value="">Programa: todos</option></select>
-    <select id="f_resultado"><option value="">Resultado: todos</option></select>
-    <select id="f_estado"><option value="">Estado: todos</option></select>
-    <button class="btn" id="clear">Limpiar</button>
-    <button class="btn" id="csv">Exportar CSV</button>
-    <span class="count" id="count"></span>
-  </div>
-
-  <div class="table-scroll">
-    <table id="tbl">
-      <thead><tr id="head"></tr></thead>
-      <tbody id="body"></tbody>
-    </table>
-  </div>
-
-  <details class="legend">
-    <summary>Leyenda de códigos y notas metodológicas</summary>
-    <div class="legend-grid">
-      <div class="legend">
-        <h4>Programa (P)</h4>
-        <table>{programa_rows}</table>
-        <h4 style="margin-top:14px">Resultado (R)</h4>
-        <table>{resultado_rows}</table>
-      </div>
-      <div class="legend">
-        <h4>Causales de reprogramación</h4>
-        <table>{causas_rows}</table>
-      </div>
-    </div>
-    <div class="notes">
-      <p><b>Fuente:</b> hoja <code>Registro_MP-2026</code> del archivo
-      <code>{html.escape(src_name)}</code> (datos desde la fila 7, columnas B–AQ,
-      ignorando las columnas Q «Observación» y S «Responsable MP»).</p>
-      <p><b>Definición de evento:</b> se genera una fila por cada combinación de
-      equipo y mes que tenga programación (P) y/o resultado (R). Los meses sin
-      ninguno de los dos no generan fila.</p>
-      <p><b>N° de Serie / N° de Inventario:</b> se reproducen exactamente como
-      están registrados, conservando los ceros a la izquierda.</p>
-      <p><b>Fecha de Ejecución:</b> el registro de origen opera a nivel de mes
-      (no de día). Cuando el resultado es «Si» o «Si-RA» se muestra el mes de
-      ejecución; en caso contrario queda vacía.</p>
-      <p><b>Estado del Equipo:</b> se deriva del código de resultado del evento
-      (p. ej. C2 → «En servicio técnico», C3 → «No operativo, espera repuestos»,
-      FS → «Fuera de servicio», Baja → «Dado de baja»). Si el mes sólo tiene
-      programación sin resultado: «Pendiente» si el mes ya transcurrió o
-      «Programada» si es futuro.</p>
-      <p><b>Cantidad de Pendientes (por equipo):</b> número de meses ya
-      transcurridos (enero a {MESES[CURRENT_MONTH-1].lower()} de {YEAR}) con
-      mantención programada cuyo resultado no es «Si» ni «Si-RA». Es un valor por
-      equipo, por lo que se repite en todas sus filas.</p>
-      <p><b>Última Actualización (por equipo):</b> mes más reciente en que el
-      equipo tiene un resultado registrado.</p>
-      <p><b>Reprogramación:</b> según las reglas, C2/C3/C4 no fijan nueva fecha
-      (la MP se registra en el mes real de reingreso); C1/C5/C6/C7/C8 se
-      reprograman dentro de 30 días — el mes original conserva «X» en P y la
-      causal en R, y el mes destino lleva «R» en P.</p>
-      <p class="muted">Reporte generado el {gen_fecha} · fecha de referencia para
-      cálculos: {gen_fecha}.</p>
-    </div>
-  </details>
-
-  <footer>Reporte autónomo · {stats['total_eventos']} eventos · generado el {gen_fecha}</footer>
-</div>
-
-<script>
-const DATA = {data_json};
-const COLUMNS = {columns_json};
-const CURRENT_MONTH = {CURRENT_MONTH};
-
-const body = document.getElementById('body');
-const head = document.getElementById('head');
-const countEl = document.getElementById('count');
-
-// Encabezados
-COLUMNS.forEach(([key, label]) => {{
-  const th = document.createElement('th');
-  th.dataset.key = key;
-  th.innerHTML = label + ' <span class="arrow">↕</span>';
-  head.appendChild(th);
-}});
-
-// Poblar filtros
-function fillSelect(id, key) {{
-  const sel = document.getElementById(id);
-  const vals = [...new Set(DATA.map(d => d[key]).filter(v => v !== '' && v != null))];
-  // ordenar meses por índice
-  if (key === 'mes') {{
-    const order = {json.dumps(MESES, ensure_ascii=False)};
-    vals.sort((a,b) => order.indexOf(a) - order.indexOf(b));
-  }} else {{
-    vals.sort((a,b) => String(a).localeCompare(String(b), 'es'));
-  }}
-  vals.forEach(v => {{
-    const o = document.createElement('option');
-    o.value = v; o.textContent = v; sel.appendChild(o);
-  }});
-}}
-fillSelect('f_servicio','servicio');
-fillSelect('f_mes','mes');
-fillSelect('f_programa','programa');
-fillSelect('f_resultado','resultado');
-fillSelect('f_estado','estado_txt');
-
-let sortKey = null, sortDir = 1;
-const ESTADO_CLASS = {{
-  ok:'b-ok', pendiente:'b-pendiente', programado:'b-programado',
-  critico:'b-critico', aviso:'b-aviso', alerta:'b-alerta', info:'b-info', baja:'b-baja'
-}};
-
-function esc(s) {{
-  return String(s == null ? '' : s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}}
-
-function currentFilters() {{
-  return {{
-    q: document.getElementById('q').value.trim().toLowerCase(),
-    servicio: document.getElementById('f_servicio').value,
-    mes: document.getElementById('f_mes').value,
-    programa: document.getElementById('f_programa').value,
-    resultado: document.getElementById('f_resultado').value,
-    estado: document.getElementById('f_estado').value,
-  }};
-}}
-
-function applyFilters() {{
-  const f = currentFilters();
-  let rows = DATA.filter(d => {{
-    if (f.servicio && d.servicio !== f.servicio) return false;
-    if (f.mes && d.mes !== f.mes) return false;
-    if (f.programa && d.programa !== f.programa) return false;
-    if (f.resultado && d.resultado !== f.resultado) return false;
-    if (f.estado && d.estado_txt !== f.estado) return false;
-    if (f.q) {{
-      const hay = (d.equipo+' '+d.serie+' '+d.inventario+' '+d.carpeta+' '+
-                   d.marca+' '+d.modelo+' '+d.servicio+' '+d.unidad+' '+
-                   d.ubicacion+' '+d.procedencia).toLowerCase();
-      if (!hay.includes(f.q)) return false;
-    }}
-    return true;
-  }});
-  if (sortKey) {{
-    rows.sort((a,b) => {{
-      let x=a[sortKey], y=b[sortKey];
-      if (sortKey==='mes') {{ x=a.mes_idx; y=b.mes_idx; }}
-      const nx=parseFloat(x), ny=parseFloat(y);
-      if (!isNaN(nx) && !isNaN(ny) && String(x).trim()!=='' && String(y).trim()!=='') {{ x=nx; y=ny; }}
-      if (x<y) return -1*sortDir; if (x>y) return 1*sortDir; return 0;
-    }});
-  }}
-  render(rows);
-}}
-
-function render(rows) {{
-  const frag = document.createDocumentFragment();
-  for (const d of rows) {{
-    const tr = document.createElement('tr');
-    let h = '';
-    for (const [key] of COLUMNS) {{
-      if (key === 'estado_txt') {{
-        const cls = ESTADO_CLASS[d.estado_key] || 'b-info';
-        h += `<td><span class="badge ${{cls}}">${{esc(d.estado_txt)}}</span></td>`;
-      }} else if (key === 'pendientes') {{
-        const cls = d.pendientes > 0 ? 'some' : 'zero';
-        h += `<td><span class="pill ${{cls}}">${{esc(d.pendientes)}}</span></td>`;
-      }} else if (key === 'serie' || key === 'inventario') {{
-        h += `<td class="serie">${{esc(d[key])}}</td>`;
-      }} else if (key === 'programa') {{
-        h += `<td title="${{esc(d.programa_label)}}">${{esc(d.programa)}}</td>`;
-      }} else if (key === 'resultado') {{
-        h += `<td title="${{esc(d.resultado_label)}}">${{esc(d.resultado) || '—'}}</td>`;
-      }} else {{
-        h += `<td>${{esc(d[key]) || '<span class=muted>—</span>'}}</td>`;
-      }}
-    }}
-    tr.innerHTML = h;
-    frag.appendChild(tr);
-  }}
-  body.innerHTML = '';
-  body.appendChild(frag);
-  countEl.textContent = rows.length + ' de ' + DATA.length + ' eventos';
-}}
-
-// Ordenamiento por encabezado
-head.addEventListener('click', e => {{
-  const th = e.target.closest('th'); if (!th) return;
-  const key = th.dataset.key;
-  if (sortKey === key) sortDir *= -1; else {{ sortKey = key; sortDir = 1; }}
-  [...head.children].forEach(h => {{
-    const a = h.querySelector('.arrow');
-    a.textContent = (h.dataset.key===sortKey) ? (sortDir>0?'▲':'▼') : '↕';
-    a.style.opacity = (h.dataset.key===sortKey) ? 1 : .4;
-  }});
-  applyFilters();
-}});
-
-['q','f_servicio','f_mes','f_programa','f_resultado','f_estado'].forEach(id => {{
-  document.getElementById(id).addEventListener('input', applyFilters);
-}});
-document.getElementById('clear').addEventListener('click', () => {{
-  document.getElementById('q').value='';
-  ['f_servicio','f_mes','f_programa','f_resultado','f_estado'].forEach(id=>document.getElementById(id).value='');
-  sortKey=null; applyFilters();
-}});
-
-// Exportar CSV (de lo filtrado)
-document.getElementById('csv').addEventListener('click', () => {{
-  const f = currentFilters();
-  const rows = DATA.filter(d => {{
-    if (f.servicio && d.servicio!==f.servicio) return false;
-    if (f.mes && d.mes!==f.mes) return false;
-    if (f.programa && d.programa!==f.programa) return false;
-    if (f.resultado && d.resultado!==f.resultado) return false;
-    if (f.estado && d.estado_txt!==f.estado) return false;
-    if (f.q) {{
-      const hay=(d.equipo+' '+d.serie+' '+d.inventario+' '+d.carpeta+' '+d.marca+' '+
-                 d.modelo+' '+d.servicio+' '+d.unidad+' '+d.ubicacion+' '+d.procedencia).toLowerCase();
-      if(!hay.includes(f.q)) return false;
-    }}
-    return true;
-  }});
-  const headers = COLUMNS.map(c => c[1]);
-  const lines = [headers.join(';')];
-  for (const d of rows) {{
-    lines.push(COLUMNS.map(([k]) => {{
-      let v = (k==='estado_txt')?d.estado_txt:d[k];
-      v = (v==null)?'':String(v);
-      if (v.includes(';')||v.includes('"')||v.includes('\\n')) v='"'+v.replace(/"/g,'""')+'"';
-      return v;
-    }}).join(';'));
-  }}
-  const blob = new Blob(['\\ufeff'+lines.join('\\r\\n')], {{type:'text/csv;charset=utf-8;'}});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'reporte_mp_2026.csv';
-  a.click();
-}});
-
-applyFilters();
-</script>
-</body>
-</html>"""
+def js_safe(s: str) -> str:
+    """Evita que cualquier '</script' rompa el documento."""
+    return s.replace("</script", "<\\/script").replace("</SCRIPT", "<\\/SCRIPT")
 
 
 def main():
     import sys
     xlsm = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_XLSM
-    events, stats = build_events(xlsm)
-    htmlout = render_html(events, stats, xlsm)
+    raw = read_raw(xlsm)
+    sheetjs = open(VENDOR_SHEETJS, encoding="utf-8").read()
+    gen_date = datetime.date(2026, 6, 24).strftime("%d-%m-%Y")
+
+    data_json = js_safe(json.dumps(raw, ensure_ascii=False))
+    template = HTML_TEMPLATE
+    html_out = (
+        template
+        .replace("/*__SHEETJS__*/", js_safe(sheetjs))
+        .replace("/*__DATA__*/", data_json)
+        .replace("/*__MESES__*/", json.dumps(MESES, ensure_ascii=False))
+        .replace("/*__MES_ABR__*/", json.dumps(MES_ABR, ensure_ascii=False))
+        .replace("/*__PROG__*/", json.dumps(PROGRAMA_LABEL, ensure_ascii=False))
+        .replace("/*__CAUSAS__*/", json.dumps(CAUSAS, ensure_ascii=False))
+        .replace("/*__RESULT__*/", json.dumps(RESULTADO_LABEL, ensure_ascii=False))
+        .replace("/*__ESTADO__*/", json.dumps(ESTADO, ensure_ascii=False))
+        .replace("__YEAR__", str(YEAR))
+        .replace("__GEN_DATE__", gen_date)
+        .replace("__SRC__", os.path.basename(xlsm))
+        .replace("__NROWS__", str(len(raw) - 1))
+    )
     with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
-        f.write(htmlout)
-    print(f"OK: {stats['total_eventos']} eventos / {stats['total_equipos']} equipos")
-    print(f"    Realizadas={stats['realizadas']}  Reprogramadas={stats['reprogramadas']}"
-          f"  Pendientes(Ene-Jun)={stats['pendientes_eventos']}")
-    print(f"    -> {OUTPUT_HTML}")
+        f.write(html_out)
+    print(f"OK: {len(raw)-1} filas de equipo incrustadas -> {OUTPUT_HTML}")
+    print(f"    Tamaño: {os.path.getsize(OUTPUT_HTML)/1024:.0f} KB")
+
+
+# --------------------------------------------------------------------------- #
+# Plantilla HTML (se usa .replace con tokens; NO es f-string).
+# --------------------------------------------------------------------------- #
+HTML_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reporte Mantenciones Preventivas __YEAR__ — H.H.H.A.</title>
+<style>
+  :root{
+    --bg:#eef1f6; --panel:#fff; --ink:#1f2733; --muted:#647084; --line:#e1e6ee;
+    --brand:#1565c0; --brand-dark:#0d3c75;
+    --ok:#1b873f; --ok-bg:#e6f6ec; --reprog:#8a6d00; --reprog-bg:#fff7d6;
+    --no:#c01525; --no-bg:#fde7e7; --nu:#9a4a00; --nu-bg:#ffe9d6;
+    --baja:#344054; --baja-bg:#dfe3ea; --noreg:#b54708; --noreg-bg:#ffeede;
+    --prog:#155e9c; --prog-bg:#e6f0fb; --fs:#c01525; --fs-bg:#fde7e7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:"Segoe UI",Roboto,system-ui,-apple-system,sans-serif}
+  header.top{background:linear-gradient(135deg,var(--brand-dark),var(--brand));
+    color:#fff;padding:16px 22px}
+  header.top h1{margin:0 0 3px;font-size:19px}
+  header.top p{margin:0;opacity:.9;font-size:12px}
+  .wrap{padding:14px 20px 70px}
+  .cards{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;min-width:120px;flex:1;cursor:pointer;transition:.12s;
+    box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(16,24,40,.10);border-color:var(--brand)}
+  .card .n{font-size:22px;font-weight:700;color:var(--brand-dark)}
+  .card .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .tabs{display:flex;gap:6px;margin:6px 0 0}
+  .tab{padding:9px 16px;border:1px solid var(--line);border-bottom:none;cursor:pointer;
+    background:#e7ecf3;border-radius:9px 9px 0 0;font-weight:600;color:var(--muted)}
+  .tab.active{background:var(--panel);color:var(--brand-dark)}
+  .toolbar{background:var(--panel);border:1px solid var(--line);border-radius:0 10px 10px 10px;
+    padding:11px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
+  .toolbar input[type=search],.toolbar select{padding:7px 9px;border:1px solid var(--line);
+    border-radius:7px;font-size:12.5px;background:#fff;color:var(--ink)}
+  .toolbar input[type=search]{min-width:220px;flex:1}
+  .toolbar .sp{margin-left:auto}
+  .btn{padding:7px 12px;border:1px solid var(--line);background:#fff;border-radius:7px;
+    cursor:pointer;font-size:12.5px;color:var(--ink)}
+  .btn:hover{background:#eef3fb}
+  .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .btn.primary:hover{background:var(--brand-dark)}
+  .count{color:var(--muted);font-size:12px}
+  .table-scroll{overflow:auto;max-height:72vh;border:1px solid var(--line);
+    border-radius:10px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:12.2px}
+  thead th{position:sticky;top:0;background:#eef2f8;color:var(--brand-dark);text-align:left;
+    padding:8px 9px;border-bottom:2px solid var(--line);white-space:nowrap;cursor:pointer;
+    user-select:none;z-index:5}
+  thead th:hover{background:#e2e9f4}
+  thead th .ar{opacity:.4;font-size:9px}
+  tbody td{padding:6px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody tr:hover{background:#f6f9fd}
+  td.mono{font-family:Consolas,"Courier New",monospace}
+  td.click,.clk{cursor:pointer}
+  td.click:hover{background:#e6f0fb;outline:1px solid var(--brand)}
+  .mcell{text-align:center;font-weight:700;cursor:pointer;min-width:34px}
+  .mcell:hover{outline:2px solid var(--brand);outline-offset:-2px}
+  .c-ok{background:var(--ok-bg);color:var(--ok)}
+  .c-reprog{background:var(--reprog-bg);color:var(--reprog)}
+  .c-no{background:var(--no-bg);color:var(--no)}
+  .c-nu{background:var(--nu-bg);color:var(--nu)}
+  .c-baja{background:var(--baja-bg);color:var(--baja)}
+  .c-noreg{background:var(--noreg-bg);color:var(--noreg)}
+  .c-prog{background:var(--prog-bg);color:var(--prog)}
+  .c-fs{background:var(--fs-bg);color:var(--fs)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  .b-ok{color:var(--ok);background:var(--ok-bg)}
+  .b-reprog{color:var(--reprog);background:var(--reprog-bg)}
+  .b-no{color:var(--no);background:var(--no-bg)}
+  .b-nu{color:var(--nu);background:var(--nu-bg)}
+  .b-baja{color:#fff;background:var(--baja)}
+  .b-noreg{color:var(--noreg);background:var(--noreg-bg)}
+  .b-prog{color:var(--prog);background:var(--prog-bg)}
+  .b-fs{color:var(--fs);background:var(--fs-bg)}
+  .b-info{color:var(--prog);background:var(--prog-bg)}
+  .pill{display:inline-block;min-width:22px;text-align:center;padding:1px 7px;border-radius:999px;
+    font-weight:700;font-size:11px;cursor:pointer}
+  .pill.zero{color:var(--muted);background:#eef0f4;cursor:default;font-weight:600}
+  .cnt-ok{color:var(--ok);background:var(--ok-bg)}
+  .cnt-reprog{color:var(--reprog);background:var(--reprog-bg)}
+  .cnt-no{color:var(--no);background:var(--no-bg)}
+  .cnt-nu{color:var(--nu);background:var(--nu-bg)}
+  .cnt-baja{color:#fff;background:var(--baja)}
+  .cnt-noreg{color:var(--noreg);background:var(--noreg-bg)}
+  .muted{color:var(--muted)}
+  /* Modal */
+  .ov{position:fixed;inset:0;background:rgba(16,24,40,.55);display:none;align-items:center;
+    justify-content:center;z-index:100;padding:20px}
+  .ov.show{display:flex}
+  .modal{background:#fff;border-radius:12px;max-width:880px;width:100%;max-height:86vh;
+    overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal h3{margin:0;padding:15px 20px;background:linear-gradient(135deg,var(--brand-dark),var(--brand));
+    color:#fff;border-radius:12px 12px 0 0;font-size:16px;position:sticky;top:0;display:flex;justify-content:space-between}
+  .modal h3 .x{cursor:pointer;opacity:.85;font-weight:400}
+  .modal .body{padding:16px 20px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px;margin-bottom:12px}
+  .kv b{color:var(--muted);font-weight:600}
+  .tl{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:8px}
+  .tl .mo{border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}
+  .tl .mo .mn{font-size:11px;color:var(--muted)}
+  .tl .mo .mt{font-size:16px;font-weight:700;margin:3px 0}
+  .tl .mo .ml{font-size:10px;line-height:1.2}
+  .legend{margin-top:20px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:2px 16px}
+  .legend>summary{cursor:pointer;font-weight:600;padding:11px 0;color:var(--brand-dark);font-size:14px}
+  .lg{display:flex;flex-wrap:wrap;gap:24px;padding:6px 0 14px}
+  .lg>div{flex:1;min-width:260px}
+  .lg h4{margin:6px 0;color:var(--brand-dark)}
+  .lg table{width:100%;font-size:12px}
+  .lg td{padding:4px 8px;border-bottom:1px solid var(--line);white-space:normal}
+  .code{font-family:Consolas,monospace;font-weight:700;color:var(--brand-dark);
+    background:#eef3fb;padding:1px 7px;border-radius:5px}
+  .chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;
+    cursor:pointer;border:1px solid transparent;margin:2px}
+  .chip.off{opacity:.85}
+  .notes{font-size:12.2px;color:var(--muted);line-height:1.6}
+  .notes b{color:var(--ink)}
+  footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:22px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0d3c75;color:#fff;
+    padding:11px 20px;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.25);display:none;z-index:200}
+  .toast.show{display:block;animation:fade .3s}
+  @keyframes fade{from{opacity:0;transform:translate(-50%,8px)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Programa de Mantención Preventiva de Equipos Médicos Críticos — __YEAR__</h1>
+  <p>Hospital Hernán Henríquez Aravena · vista matriz por equipo + vista por evento · importable y cliqueable</p>
+</header>
+
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="matriz">Matriz por equipo</div>
+    <div class="tab" data-tab="eventos">Eventos (una fila por evento)</div>
+  </div>
+
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Buscar: equipo, serie, inventario, marca, servicio…">
+    <select id="f_servicio"><option value="">Servicio: todos</option></select>
+    <select id="f_clasif"><option value="">Clasificación: todas</option></select>
+    <select id="f_mes"><option value="">Mes: todos</option></select>
+    <select id="f_resultado"><option value="">Resultado: todos</option></select>
+    <button class="btn" id="clear">Limpiar</button>
+    <span class="sp"></span>
+    <button class="btn primary" id="importBtn">⭱ Importar .xlsm</button>
+    <input type="file" id="file" accept=".xlsm,.xlsx,.xls" style="display:none">
+    <button class="btn" id="csv">Exportar CSV</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="table-scroll">
+    <table id="tbl"><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table>
+  </div>
+
+  <details class="legend">
+    <summary>Leyenda de códigos, filtros rápidos y notas metodológicas</summary>
+    <div style="padding:4px 0 10px">
+      <b>Filtros rápidos por resultado (clic):</b><br>
+      <span class="chip cnt-ok"   data-r="Si">Sí · Realizada</span>
+      <span class="chip cnt-reprog" data-r="__C__">C1–C8 · Reprogramada</span>
+      <span class="chip cnt-no"   data-r="No">No realizada</span>
+      <span class="chip cnt-nu"   data-r="NU">No ubicable</span>
+      <span class="chip cnt-baja" data-r="Baja">Baja</span>
+      <span class="chip cnt-noreg" data-r="__NOREG__">No registrado</span>
+    </div>
+    <div class="lg">
+      <div><h4>Programa (P)</h4><table id="lg-prog"></table>
+           <h4 style="margin-top:12px">Resultado (R)</h4><table id="lg-res"></table></div>
+      <div><h4>Causales de reprogramación</h4><table id="lg-cau"></table></div>
+    </div>
+    <div class="notes" id="notes"></div>
+  </details>
+
+  <footer id="foot"></footer>
+</div>
+
+<div class="ov" id="ov"><div class="modal"><h3 id="m-title"><span></span><span class="x" id="m-x">✕</span></h3><div class="body" id="m-body"></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>/*__SHEETJS__*/</script>
+<script>
+"use strict";
+// ---- datos crudos por defecto (hoja Registro_MP-2026, encabezado primero) ----
+const RAW = /*__DATA__*/;
+const MESES = /*__MESES__*/;
+const MES_ABR = /*__MES_ABR__*/;
+const PROGRAMA_LABEL = /*__PROG__*/;
+const CAUSAS = /*__CAUSAS__*/;
+const RESULTADO_LABEL = /*__RESULT__*/;
+const ESTADO = /*__ESTADO__*/;
+const YEAR = __YEAR__;
+const GEN_DATE = "__GEN_DATE__";
+let SRC = "__SRC__";
+
+const P_COLS=[19,21,23,25,27,29,31,33,35,37,39,41];
+const R_COLS=[20,22,24,26,28,30,32,34,36,38,40,42];
+const COL={id:1,carpeta:2,inventario:3,equipo:4,servicio:5,unidad:6,ubicacion:7,
+  procedencia:8,marca:9,modelo:10,serie:11,anio:12,vida_util:13,clasif:14,enu_baja:15,frecuencia:17};
+const REALIZADOS={"Si":1,"Si-RA":1};
+
+function refMonth(){ const d=new Date(); const y=d.getFullYear();
+  if(y>YEAR) return 12; if(y<YEAR) return 0; return d.getMonth()+1; }
+const REF_MONTH = refMonth();
+
+function txt(v){ if(v===null||v===undefined) return ""; return String(v).trim(); }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+// ---- celda de mes: clave de color, token visible y etiqueta ----
+function cellInfo(p,r,mesIdx){
+  let key="",token="",label="";
+  if(r){
+    token=r;
+    label=RESULTADO_LABEL[r]||r;
+    if(REALIZADOS[r]) key="ok";
+    else if(CAUSAS[r]) key="reprog";
+    else if(r==="No") key="no";
+    else if(r==="NU") key="nu";
+    else if(r==="Baja") key="baja";
+    else if(r==="FS") key="fs";
+    else key="info";
+    if(p) label=(PROGRAMA_LABEL[p]||p)+" → "+label;
+  } else if(p){
+    token=p;
+    if(mesIdx<=REF_MONTH){ key="noreg"; label=(PROGRAMA_LABEL[p]||p)+" — sin registro de resultado"; }
+    else { key="prog"; label=(PROGRAMA_LABEL[p]||p)+" — programada (mes futuro)"; }
+  }
+  return {key,token,label};
+}
+function estadoInfo(p,r,mesIdx){
+  if(r && ESTADO[r]) return {key:ESTADO[r][0],txt:ESTADO[r][1]};
+  if(r) return {key:"info",txt:r};
+  if(mesIdx<=REF_MONTH) return {key:"noreg",txt:"Pendiente (sin registro)"};
+  return {key:"prog",txt:"Programada"};
+}
+
+// ---- TRANSFORM: filas crudas -> {events, equipos, stats} ----
+function transform(rows){            // rows[0] = encabezado
+  const events=[], equipos=[];
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i]||[];
+    const id=txt(row[COL.id]);
+    if(!id) continue;
+    const ident={};
+    for(const k in COL) ident[k]=txt(row[COL[k]]);
+    // placeholder "0" => vacío en columnas no identificadoras
+    ["carpeta","servicio","unidad","ubicacion","procedencia","enu_baja","frecuencia"]
+      .forEach(k=>{ if(ident[k]==="0") ident[k]=""; });
+    if(!ident.equipo && !ident.serie && !ident.inventario) continue;
+
+    const meses=[];
+    for(let m=0;m<12;m++) meses.push([txt(row[P_COLS[m]]), txt(row[R_COLS[m]])]);
+
+    let pend=0, ultimaIdx=-1;
+    const counts={si:0,reprog:0,no:0,nu:0,baja:0,noreg:0};
+    for(let m=0;m<12;m++){
+      const [p,r]=meses[m];
+      if(r) ultimaIdx=m;
+      if(REALIZADOS[r]) counts.si++;
+      else if(CAUSAS[r]) counts.reprog++;
+      else if(r==="No") counts.no++;
+      else if(r==="NU") counts.nu++;
+      else if(r==="Baja") counts.baja++;
+      if(p && (m+1)<=REF_MONTH){
+        if(!REALIZADOS[r] && r!=="Baja") pend++;
+        if(!r) counts.noreg++;
+      }
+    }
+    const ultima = ultimaIdx>=0 ? (MESES[ultimaIdx]+" "+YEAR) : "";
+
+    const mesesCell=[];
+    for(let m=0;m<12;m++){
+      const [p,r]=meses[m];
+      const ci=cellInfo(p,r,m+1);
+      mesesCell.push({p,r,mesIdx:m+1,key:ci.key,token:ci.token,label:ci.label});
+      if(!p && !r) continue;
+      const es=estadoInfo(p,r,m+1);
+      events.push(Object.assign({}, ident, {
+        mes:MESES[m], mesIdx:m+1, programa:p, programaLabel:PROGRAMA_LABEL[p]||p,
+        resultado:r, resultadoLabel:RESULTADO_LABEL[r]||r,
+        fechaEjec: REALIZADOS[r] ? (MESES[m]+" "+YEAR) : "",
+        estadoKey:es.key, estadoTxt:es.txt,
+        pendientes:pend, ultimaActualizacion:ultima
+      }));
+    }
+    equipos.push(Object.assign({}, ident, {meses:mesesCell, counts, pendientes:pend, ultimaActualizacion:ultima}));
+  }
+  const stats={
+    eventos:events.length,
+    equipos:new Set(events.map(e=>e.id)).size,
+    programadas:events.filter(e=>e.programa).length,
+    realizadas:events.filter(e=>REALIZADOS[e.resultado]).length,
+    reprogramadas:events.filter(e=>CAUSAS[e.resultado]).length,
+    noreg:equipos.reduce((a,e)=>a+e.counts.noreg,0),
+  };
+  return {events,equipos,stats};
+}
+
+// ---- estado global ----
+let DATA = transform(RAW);
+let TAB = "matriz";
+let sortKey=null, sortDir=1;
+const $=id=>document.getElementById(id);
+
+// ---- definición de columnas ----
+const MATRIX_COLS=[
+  ["id","ID"],["inventario","N° Inv."],["equipo","Equipo"],["servicio","Servicio"],
+  ["unidad","Unidad"],["marca","Marca"],["serie","N° Serie"]
+];
+const COUNT_COLS=[["si","Sí","cnt-ok"],["reprog","C1–C8","cnt-reprog"],["no","No","cnt-no"],
+  ["nu","NU","cnt-nu"],["baja","Baja","cnt-baja"],["noreg","No reg.","cnt-noreg"]];
+const EVENT_COLS=[
+  ["id","ID"],["carpeta","N° Carpeta"],["inventario","N° Inventario"],["equipo","Nombre del Equipo"],
+  ["servicio","Servicio"],["unidad","Unidad"],["ubicacion","Ubicación"],["procedencia","Procedencia"],
+  ["marca","Marca"],["modelo","Modelo"],["serie","N° de Serie"],["anio","Año Inst."],
+  ["vida_util","Vida Útil Res."],["clasif","Clasificación"],["enu_baja","ENU / Baja"],
+  ["mes","Mes"],["programa","Programa"],["resultado","Resultado"],["fechaEjec","Fecha de Ejecución"],
+  ["estadoTxt","Estado del Equipo"],["pendientes","Cant. Pend."],["ultimaActualizacion","Última Actualización"]
+];
+
+// ---- filtros ----
+function fillSelect(id, vals, prefix){
+  const sel=$(id); const cur=sel.value;
+  sel.innerHTML='<option value="">'+prefix+'</option>';
+  vals.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; sel.appendChild(o); });
+  sel.value=cur;
+}
+function refreshFilters(){
+  const servicios=[...new Set(DATA.equipos.map(e=>e.servicio).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  const clasifs=[...new Set(DATA.equipos.map(e=>e.clasif).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  fillSelect("f_servicio",servicios,"Servicio: todos");
+  fillSelect("f_clasif",clasifs,"Clasificación: todas");
+  fillSelect("f_mes",MESES,"Mes: todos");
+  const ropts=["Si (Realizada)","C1–C8 (Reprogramada)","No (No realizada)","NU (No ubicable)","Baja","No registrado"];
+  fillSelect("f_resultado",ropts,"Resultado: todos");
+}
+function filters(){
+  return {q:$("q").value.trim().toLowerCase(), servicio:$("f_servicio").value,
+    clasif:$("f_clasif").value, mes:$("f_mes").value, resultado:$("f_resultado").value};
+}
+function matchEquipoText(e,q){
+  if(!q) return true;
+  return (e.equipo+" "+e.serie+" "+e.inventario+" "+e.carpeta+" "+e.marca+" "+e.modelo+" "+
+          e.servicio+" "+e.unidad+" "+e.ubicacion+" "+e.procedencia).toLowerCase().includes(q);
+}
+function resultMatchesEvent(ev,resFilter){
+  if(!resFilter) return true;
+  if(resFilter.startsWith("Si")) return REALIZADOS[ev.resultado];
+  if(resFilter.startsWith("C1")) return !!CAUSAS[ev.resultado];
+  if(resFilter.startsWith("No (")) return ev.resultado==="No";
+  if(resFilter.startsWith("NU")) return ev.resultado==="NU";
+  if(resFilter.startsWith("Baja")) return ev.resultado==="Baja";
+  if(resFilter.startsWith("No reg")) return !ev.resultado && ev.mesIdx<=REF_MONTH;
+  return true;
+}
+function countKeyToFilter(){ // map result filter to equipo count key (for matrix)
+  const r=$("f_resultado").value;
+  if(r.startsWith("Si")) return "si"; if(r.startsWith("C1")) return "reprog";
+  if(r.startsWith("No (")) return "no"; if(r.startsWith("NU")) return "nu";
+  if(r.startsWith("Baja")) return "baja"; if(r.startsWith("No reg")) return "noreg";
+  return null;
+}
+
+// ---- filtrado por vista ----
+function filteredEquipos(){
+  const f=filters(); const ck=countKeyToFilter();
+  return DATA.equipos.filter(e=>{
+    if(f.servicio && e.servicio!==f.servicio) return false;
+    if(f.clasif && e.clasif!==f.clasif) return false;
+    if(!matchEquipoText(e,f.q)) return false;
+    if(f.mes){ const mi=MESES.indexOf(f.mes); const c=e.meses[mi]; if(!c.p && !c.r) return false; }
+    if(ck && e.counts[ck]<=0) return false;
+    return true;
+  });
+}
+function filteredEvents(){
+  const f=filters();
+  return DATA.events.filter(ev=>{
+    if(f.servicio && ev.servicio!==f.servicio) return false;
+    if(f.clasif && ev.clasif!==f.clasif) return false;
+    if(f.mes && ev.mes!==f.mes) return false;
+    if(!resultMatchesEvent(ev,f.resultado)) return false;
+    if(!matchEquipoText(ev,f.q)) return false;
+    return true;
+  });
+}
+
+// ---- ordenamiento ----
+function sortRows(rows,getter){
+  if(!sortKey) return rows;
+  return rows.slice().sort((a,b)=>{
+    let x=getter(a,sortKey), y=getter(b,sortKey);
+    const nx=parseFloat(x), ny=parseFloat(y);
+    if(!isNaN(nx)&&!isNaN(ny)&&String(x).trim()!==""&&String(y).trim()!==""){x=nx;y=ny;}
+    if(x<y) return -sortDir; if(x>y) return sortDir; return 0;
+  });
+}
+
+// ---- render encabezado ----
+function renderHead(cols, extraMonths){
+  let h="";
+  cols.forEach(([k,l])=>{ h+='<th data-k="'+k+'">'+esc(l)+' <span class="ar">↕</span></th>'; });
+  if(extraMonths){
+    MES_ABR.forEach((m,i)=>{ h+='<th data-k="m'+i+'" title="'+MESES[i]+'">'+m+'</th>'; });
+    COUNT_COLS.forEach(([k,l])=>{ h+='<th data-k="c_'+k+'">'+l+' <span class="ar">↕</span></th>'; });
+  }
+  $("head").innerHTML=h;
+}
+
+// ---- render matriz ----
+function renderMatrix(){
+  renderHead(MATRIX_COLS,true);
+  const get=(e,k)=>{ if(k.startsWith("c_")) return e.counts[k.slice(2)];
+    if(k[0]==="m"&&/^m\d+$/.test(k)) return e.meses[+k.slice(1)].token; return e[k]; };
+  let rows=sortRows(filteredEquipos(),get);
+  const frag=[];
+  for(const e of rows){
+    let h="<tr>";
+    MATRIX_COLS.forEach(([k])=>{
+      const cls=(k==="serie"||k==="inventario")?"mono ":"";
+      const clk=(k==="id"||k==="equipo")?"click":"";
+      const dataAttr=(k==="id"||k==="equipo")?(' data-eq="'+esc(e.id)+'"'):"";
+      h+='<td class="'+cls+clk+'"'+dataAttr+'>'+(esc(e[k])||'<span class=muted>—</span>')+'</td>';
+    });
+    e.meses.forEach((c,i)=>{
+      h+='<td class="mcell '+(c.key?("c-"+c.key):"")+'" data-eq="'+esc(e.id)+'" data-mi="'+i+'" title="'+esc(c.label)+'">'+esc(c.token)+'</td>';
+    });
+    COUNT_COLS.forEach(([k,,cc])=>{
+      const v=e.counts[k];
+      if(v>0) h+='<td><span class="pill '+cc+'" data-eq="'+esc(e.id)+'" data-ct="'+k+'">'+v+'</span></td>';
+      else h+='<td><span class="pill zero">0</span></td>';
+    });
+    h+="</tr>"; frag.push(h);
+  }
+  $("body").innerHTML=frag.join("");
+  $("count").textContent=rows.length+" de "+DATA.equipos.length+" equipos";
+}
+
+// ---- render eventos ----
+function renderEventos(){
+  renderHead(EVENT_COLS,false);
+  const get=(e,k)=> k==="mes"? e.mesIdx : e[k];
+  let rows=sortRows(filteredEvents(),get);
+  const frag=[];
+  for(let idx=0;idx<rows.length;idx++){
+    const d=rows[idx];
+    let h='<tr class="clk" data-ev="'+idx+'">';
+    EVENT_COLS.forEach(([k])=>{
+      if(k==="estadoTxt") h+='<td><span class="badge b-'+d.estadoKey+'">'+esc(d.estadoTxt)+'</span></td>';
+      else if(k==="pendientes"){ const c=d.pendientes>0?"cnt-noreg":""; h+='<td><span class="pill '+(c||"zero")+'">'+esc(d.pendientes)+'</span></td>'; }
+      else if(k==="serie"||k==="inventario") h+='<td class="mono">'+esc(d[k])+'</td>';
+      else if(k==="programa") h+='<td title="'+esc(d.programaLabel)+'">'+(esc(d.programa)||'—')+'</td>';
+      else if(k==="resultado") h+='<td title="'+esc(d.resultadoLabel)+'">'+(esc(d.resultado)||'<span class=muted>—</span>')+'</td>';
+      else h+='<td>'+(esc(d[k])||'<span class=muted>—</span>')+'</td>';
+    });
+    h+="</tr>"; frag.push(h);
+  }
+  window.__evRows=rows;
+  $("body").innerHTML=frag.join("");
+  $("count").textContent=rows.length+" de "+DATA.events.length+" eventos";
+}
+
+function render(){
+  if(TAB==="matriz") renderMatrix();
+  else renderEventos();
+}
+
+// ---- tarjetas resumen (cliqueables) ----
+function renderCards(){
+  const s=DATA.stats;
+  const cards=[
+    ["eventos",s.eventos,"Eventos",null],
+    ["equipos",s.equipos,"Equipos",null],
+    ["realizadas",s.realizadas,"Realizadas (Sí)","Si (Realizada)"],
+    ["reprogramadas",s.reprogramadas,"Reprogramadas","C1–C8 (Reprogramada)"],
+    ["noreg",s.noreg,"No registradas","No registrado"],
+    ["programadas",s.programadas,"Programadas",null],
+  ];
+  $("cards").innerHTML=cards.map(c=>
+    '<div class="card" data-rf="'+(c[3]||"")+'"><div class="n">'+c[1]+'</div><div class="l">'+c[2]+'</div></div>').join("");
+}
+
+// ---- modales ----
+function openModal(title, bodyHtml){
+  $("m-title").firstElementChild.textContent=title;
+  $("m-body").innerHTML=bodyHtml;
+  $("ov").classList.add("show");
+}
+function closeModal(){ $("ov").classList.remove("show"); }
+function kv(pairs){ return '<div class="kv">'+pairs.map(p=>'<b>'+esc(p[0])+'</b><span>'+(esc(p[1])||'—')+'</span>').join("")+'</div>'; }
+
+function modalEquipo(id){
+  const e=DATA.equipos.find(x=>x.id===id); if(!e) return;
+  let body=kv([["ID",e.id],["N° Carpeta",e.carpeta],["N° Inventario",e.inventario],
+    ["Equipo",e.equipo],["Servicio",e.servicio],["Unidad",e.unidad],["Ubicación",e.ubicacion],
+    ["Procedencia",e.procedencia],["Marca",e.marca],["Modelo",e.modelo],["N° de Serie",e.serie],
+    ["Año Instalación",e.anio],["Vida Útil Residual",e.vida_util],["Clasificación",e.clasif],
+    ["Frecuencia MP",e.frecuencia],["Pendientes",e.pendientes],["Última actualización",e.ultimaActualizacion]]);
+  body+="<h4>Línea de tiempo "+YEAR+"</h4><div class='tl'>";
+  e.meses.forEach((c,i)=>{
+    body+="<div class='mo "+(c.key?("c-"+c.key):"")+"'><div class='mn'>"+MES_ABR[i]+"</div>"+
+      "<div class='mt'>"+(esc(c.token)||"·")+"</div><div class='ml'>"+esc(c.label||"")+"</div></div>";
+  });
+  body+="</div>";
+  openModal(e.equipo+" — "+(e.inventario||e.serie||("ID "+e.id)), body);
+}
+function modalEvento(ev){
+  openModal((ev.equipo||"Evento")+" — "+ev.mes+" "+YEAR, kv([
+    ["ID",ev.id],["N° Carpeta",ev.carpeta],["N° Inventario",ev.inventario],["Equipo",ev.equipo],
+    ["Servicio",ev.servicio],["Unidad",ev.unidad],["Ubicación",ev.ubicacion],["Procedencia",ev.procedencia],
+    ["Marca",ev.marca],["Modelo",ev.modelo],["N° de Serie",ev.serie],["Año Instalación",ev.anio],
+    ["Vida Útil Residual",ev.vida_util],["Clasificación",ev.clasif],["ENU / Baja",ev.enu_baja],
+    ["Mes",ev.mes+" "+YEAR],["Programa",ev.programa+" — "+ev.programaLabel],
+    ["Resultado",(ev.resultado||"—")+(ev.resultado?(" — "+ev.resultadoLabel):"")],
+    ["Fecha de Ejecución",ev.fechaEjec],["Estado del Equipo",ev.estadoTxt],
+    ["Cant. Pendientes",ev.pendientes],["Última Actualización",ev.ultimaActualizacion]]));
+}
+function modalListaCount(id, ct){
+  const e=DATA.equipos.find(x=>x.id===id); if(!e) return;
+  const evs=DATA.events.filter(ev=>{
+    if(ev.id!==id) return false;
+    if(ct==="si") return REALIZADOS[ev.resultado];
+    if(ct==="reprog") return !!CAUSAS[ev.resultado];
+    if(ct==="no") return ev.resultado==="No";
+    if(ct==="nu") return ev.resultado==="NU";
+    if(ct==="baja") return ev.resultado==="Baja";
+    if(ct==="noreg") return !ev.resultado && ev.mesIdx<=REF_MONTH;
+    return false;
+  });
+  let body="<table style='width:100%;font-size:12.5px'><thead><tr><th>Mes</th><th>Programa</th><th>Resultado</th><th>Estado</th></tr></thead><tbody>";
+  evs.forEach(ev=>{ body+="<tr><td>"+ev.mes+"</td><td>"+esc(ev.programa)+"</td><td>"+
+    (esc(ev.resultado)||"—")+"</td><td><span class='badge b-"+ev.estadoKey+"'>"+esc(ev.estadoTxt)+"</span></td></tr>"; });
+  body+="</tbody></table>";
+  const lbl=(COUNT_COLS.find(c=>c[0]===ct)||["","" ])[1];
+  openModal(e.equipo+" — "+lbl+" ("+evs.length+")", body);
+}
+
+// ---- eventos de UI ----
+$("head").addEventListener("click",ev=>{
+  const th=ev.target.closest("th"); if(!th) return; const k=th.dataset.k;
+  if(sortKey===k) sortDir*=-1; else {sortKey=k;sortDir=1;}
+  [...$("head").children].forEach(h=>{const a=h.querySelector(".ar"); if(a){a.textContent=(h.dataset.k===sortKey)?(sortDir>0?"▲":"▼"):"↕"; a.style.opacity=(h.dataset.k===sortKey)?1:.4;}});
+  render();
+});
+$("body").addEventListener("click",ev=>{
+  const evRow=ev.target.closest("tr[data-ev]");
+  const pill=ev.target.closest(".pill[data-ct]");
+  const mcell=ev.target.closest(".mcell[data-mi]");
+  const idc=ev.target.closest("[data-eq]");
+  if(pill){ modalListaCount(pill.dataset.eq, pill.dataset.ct); return; }
+  if(mcell){ const e=DATA.equipos.find(x=>x.id===mcell.dataset.eq); const i=+mcell.dataset.mi;
+    const ce=DATA.events.find(x=>x.id===mcell.dataset.eq && x.mesIdx===i+1);
+    if(ce) modalEvento(ce); else modalEquipo(mcell.dataset.eq); return; }
+  if(TAB==="eventos" && evRow){ modalEvento(window.__evRows[+evRow.dataset.ev]); return; }
+  if(idc && idc.dataset.eq && TAB==="matriz"){ modalEquipo(idc.dataset.eq); return; }
+});
+$("cards").addEventListener("click",ev=>{
+  const c=ev.target.closest(".card"); if(!c) return;
+  const rf=c.dataset.rf;
+  if(rf){ $("f_resultado").value=rf; render(); }
+});
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active"); TAB=t.dataset.tab; sortKey=null; render();
+}));
+["q","f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).addEventListener("input",render));
+$("clear").addEventListener("click",()=>{ $("q").value="";
+  ["f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).value=""); sortKey=null; render(); });
+$("m-x").addEventListener("click",closeModal);
+$("ov").addEventListener("click",ev=>{ if(ev.target===$("ov")) closeModal(); });
+document.addEventListener("keydown",ev=>{ if(ev.key==="Escape") closeModal(); });
+
+// filtros rápidos (chips)
+document.querySelectorAll(".chip").forEach(ch=>ch.addEventListener("click",()=>{
+  const r=ch.dataset.r;
+  const map={"Si":"Si (Realizada)","__C__":"C1–C8 (Reprogramada)","No":"No (No realizada)",
+    "NU":"NU (No ubicable)","Baja":"Baja","__NOREG__":"No registrado"};
+  $("f_resultado").value=map[r]||""; render();
+  window.scrollTo({top:0,behavior:"smooth"});
+}));
+
+// ---- importar .xlsm ----
+$("importBtn").addEventListener("click",()=>$("file").click());
+$("file").addEventListener("change",ev=>{
+  const file=ev.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:false});
+      if(wb.SheetNames.indexOf("Registro_MP-2026")<0){ toast("No se encontró la hoja «Registro_MP-2026»."); return; }
+      const ws=wb.Sheets["Registro_MP-2026"];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""});
+      DATA=transform(aoa.slice(6));        // fila 7 = encabezado
+      SRC=file.name;
+      refreshFilters(); renderCards(); render(); renderNotes();
+      toast("Datos actualizados desde «"+file.name+"»: "+DATA.stats.eventos+" eventos / "+DATA.stats.equipos+" equipos.");
+    }catch(err){ toast("Error al leer el archivo: "+err.message); }
+  };
+  rd.readAsArrayBuffer(file);
+  ev.target.value="";
+});
+
+// ---- exportar CSV (vista activa) ----
+$("csv").addEventListener("click",()=>{
+  let headers, lines=[];
+  if(TAB==="matriz"){
+    headers=MATRIX_COLS.map(c=>c[1]).concat(MES_ABR).concat(COUNT_COLS.map(c=>c[1]));
+    lines.push(headers.join(";"));
+    filteredEquipos().forEach(e=>{
+      const r=MATRIX_COLS.map(c=>csv(e[c[0]])).concat(e.meses.map(m=>csv(m.token)))
+        .concat(COUNT_COLS.map(c=>e.counts[c[0]]));
+      lines.push(r.join(";"));
+    });
+  }else{
+    headers=EVENT_COLS.map(c=>c[1]); lines.push(headers.join(";"));
+    filteredEvents().forEach(d=>{ lines.push(EVENT_COLS.map(c=>csv(c[0]==="estadoTxt"?d.estadoTxt:d[c[0]])).join(";")); });
+  }
+  const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8;"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="reporte_mp_"+YEAR+"_"+TAB+".csv"; a.click();
+});
+function csv(v){ v=(v==null)?"":String(v); return (/[;"\n]/.test(v))?'"'+v.replace(/"/g,'""')+'"':v; }
+
+// ---- toast ----
+let toastT;
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),4200); }
+
+// ---- leyenda + notas ----
+function renderNotes(){
+  $("lg-prog").innerHTML=Object.entries(PROGRAMA_LABEL).map(([c,d])=>"<tr><td><span class='code'>"+c+"</span></td><td>"+esc(d)+"</td></tr>").join("");
+  $("lg-res").innerHTML=[["Si","Mantención Preventiva Realizada"],["C1–C8","Mantención Preventiva Reprogramada (causales)"],
+    ["Si-RA","Mantención de Año Anterior Realizada"],["FS","Fuera de Servicio"],["No","No Realizada"],
+    ["NU","No Ubicable"],["Baja","Equipo Dado de Baja"]].map(([c,d])=>"<tr><td><span class='code'>"+c+"</span></td><td>"+esc(d)+"</td></tr>").join("");
+  $("lg-cau").innerHTML=Object.entries(CAUSAS).map(([c,d])=>"<tr><td><span class='code'>"+c+"</span></td><td>"+esc(d)+"</td></tr>").join("");
+  const mesRef = REF_MONTH>=1&&REF_MONTH<=12 ? MESES[REF_MONTH-1].toLowerCase() : "—";
+  $("notes").innerHTML=
+    "<p><b>Fuente:</b> hoja <code>Registro_MP-2026</code> de <code>"+esc(SRC)+"</code> (encabezado fila 7, columnas B–AQ, ignorando Q «Observación» y S «Responsable MP»).</p>"+
+    "<p><b>Una columna por mes</b> en la vista matriz: cada celda muestra el Resultado (R) si existe, o el Programa (P) en caso contrario, coloreado por categoría. <b>Clic</b> en cualquier celda, conteo o equipo para ver el detalle.</p>"+
+    "<p><b>Columnas de conteo (por equipo):</b> <b>Sí</b> = realizadas (Si/Si-RA); <b>C1–C8</b> = reprogramadas; <b>No</b>, <b>NU</b>, <b>Baja</b> = según resultado; <b>No registrado</b> = meses transcurridos (enero a "+mesRef+" "+YEAR+") con MP programada y sin resultado registrado.</p>"+
+    "<p><b>N° de Serie / Inventario:</b> se conservan tal cual, respetando ceros a la izquierda.</p>"+
+    "<p><b>Fecha de Ejecución:</b> el registro es a nivel de mes; se muestra el mes cuando el resultado es Si/Si-RA.</p>"+
+    "<p><b>Estado del Equipo</b> (vista eventos): derivado del código de resultado; si sólo hay programación → «Pendiente» (mes transcurrido) o «Programada» (futuro).</p>"+
+    "<p class='muted'>Reporte generado el "+GEN_DATE+". Cálculos de meses transcurridos según la fecha del navegador (mes de referencia actual: "+mesRef+" "+YEAR+"). Puede importar un .xlsm actualizado con el botón «Importar .xlsm».</p>";
+  $("foot").textContent="Reporte autónomo · "+DATA.stats.eventos+" eventos · "+DATA.stats.equipos+" equipos · generado "+GEN_DATE;
+}
+
+// ---- init ----
+refreshFilters(); renderCards(); renderNotes(); render();
+</script>
+</body>
+</html>"""
 
 
 if __name__ == "__main__":
