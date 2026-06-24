@@ -28,8 +28,12 @@
   .card:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(16,24,40,.10);border-color:var(--brand)}
   .card .n{font-size:22px;font-weight:700;color:var(--brand-dark)}
   .card .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-  .toolbar{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    padding:11px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:8px 0 12px}
+  .tabs{display:flex;gap:6px;margin:8px 0 0}
+  .tab{padding:9px 16px;border:1px solid var(--line);border-bottom:none;cursor:pointer;
+    background:#e7ecf3;border-radius:9px 9px 0 0;font-weight:600;color:var(--muted)}
+  .tab.active{background:var(--panel);color:var(--brand-dark)}
+  .toolbar{background:var(--panel);border:1px solid var(--line);border-radius:0 10px 10px 10px;
+    padding:11px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
   .toolbar input[type=search],.toolbar select{padding:7px 9px;border:1px solid var(--line);
     border-radius:7px;font-size:12.5px;background:#fff;color:var(--ink)}
   .toolbar input[type=search]{min-width:220px;flex:1}
@@ -52,6 +56,13 @@
   tbody tr:hover{background:#f6f9fd}
   td.mono{font-family:Consolas,"Courier New",monospace}
   tr.clk{cursor:pointer}
+  .nota-cell{max-width:340px;white-space:normal;line-height:1.35}
+  .nota-empty{color:var(--muted);font-style:italic}
+  tr.has-nota td.nota-cell{box-shadow:inset 3px 0 0 var(--brand);background:#f3f8ff}
+  textarea.note-edit{width:100%;min-height:170px;padding:9px;border:1px solid var(--line);
+    border-radius:8px;font:inherit;font-size:13px;resize:vertical}
+  .note-meta{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .modal label{display:block;font-weight:600;color:var(--brand-dark);margin:8px 0 4px}
   .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
   .b-ok{color:var(--ok);background:var(--ok-bg)}
   .b-reprog{color:var(--reprog);background:var(--reprog-bg)}
@@ -107,11 +118,16 @@
 <body>
 <header class="top">
   <h1>Programa de Mantención Preventiva de Equipos Médicos Críticos — 2026</h1>
-  <p>Hospital Hernán Henríquez Aravena · una fila por evento de mantención · importable y cliqueable</p>
+  <p>Hospital Hernán Henríquez Aravena · listado único de equipos con notas + eventos · importable y cliqueable</p>
 </header>
 
 <div class="wrap">
   <div class="cards" id="cards"></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="equipos">Equipos (listado único)</div>
+    <div class="tab" data-tab="eventos">Eventos</div>
+  </div>
 
   <div class="toolbar">
     <input type="search" id="q" placeholder="Buscar: equipo, serie, inventario, marca, servicio…">
@@ -121,6 +137,9 @@
     <select id="f_resultado"><option value="">Resultado: todos</option></select>
     <button class="btn" id="clear">Limpiar</button>
     <span class="sp"></span>
+    <button class="btn" id="expNotas">⭳ Exportar notas</button>
+    <button class="btn" id="impNotas">⭱ Importar notas</button>
+    <input type="file" id="notesFile" accept=".json,application/json" style="display:none">
     <button class="btn primary" id="importBtn">⭱ Importar .xlsm</button>
     <input type="file" id="file" accept=".xlsm,.xlsx,.xls" style="display:none">
     <button class="btn" id="csv">Exportar CSV</button>
@@ -222,8 +241,8 @@ function transform(rows){            // rows[0] = encabezado
     if(!id) continue;
     const ident={};
     for(const k in COL) ident[k]=txt(row[COL[k]]);
-    // placeholder "0" => vacío en columnas no identificadoras
-    ["carpeta","inventario","servicio","unidad","ubicacion","procedencia","enu_baja","frecuencia"]
+    // placeholder "0" => vacío (sólo el literal "0"; preserva ceros a la izquierda como "0024")
+    ["carpeta","inventario","serie","servicio","unidad","ubicacion","procedencia","enu_baja","frecuencia"]
       .forEach(k=>{ if(ident[k]==="0") ident[k]=""; });
     if(!ident.equipo && !ident.serie && !ident.inventario) continue;
 
@@ -273,11 +292,46 @@ function transform(rows){            // rows[0] = encabezado
 }
 
 // ---- estado global ----
-let DATA = transform(RAW);
+let TAB="equipos";
+let DATA, EQUIPOS=[], EQ_BY_KEY={};
 let sortKey=null, sortDir=1;
 const $=id=>document.getElementById(id);
 
+// ---- notas / actualizaciones por equipo (localStorage + exportar/importar) ----
+// Clave estable por equipo: N° de Serie, o N° de Inventario, o "#ID".
+const NOTES_KEY="aqf_mp_notas_v1";
+let LS_OK=true, NOTES={};
+try{ NOTES=JSON.parse(localStorage.getItem(NOTES_KEY)||"{}")||{}; }catch(e){ LS_OK=false; NOTES={}; }
+function equipKey(e){ return e.serie || e.inventario || ("#"+e.id); }
+function noteFor(key){ return NOTES[key] || {text:"",ts:""}; }
+function countNotes(){ return Object.keys(NOTES).filter(k=>NOTES[k]&&NOTES[k].text).length; }
+function persistNotes(){
+  try{ localStorage.setItem(NOTES_KEY, JSON.stringify(NOTES)); }
+  catch(e){ if(LS_OK){ LS_OK=false;
+    toast("No se pudieron guardar las notas en este navegador; usa «Exportar notas» para conservarlas."); } }
+}
+function saveNote(key,text){
+  text=(text||"").trim();
+  if(!text) delete NOTES[key]; else NOTES[key]={text, ts:new Date().toISOString()};
+  persistNotes();
+}
+function delNote(key){ delete NOTES[key]; persistNotes(); }
+function fmtTs(iso){ if(!iso) return "—"; try{ return new Date(iso).toLocaleString("es-CL"); }catch(e){ return iso; } }
+
+function setData(d){
+  DATA=d;
+  EQUIPOS=DATA.equipos.filter(e=>e.serie||e.inventario);   // listado único (equipo real)
+  EQ_BY_KEY={}; EQUIPOS.forEach(e=>{ EQ_BY_KEY[equipKey(e)]=e; });
+}
+setData(transform(RAW));
+
 // ---- definición de columnas ----
+const EQUIPO_COLS=[
+  ["id","ID"],["inventario","N° Inventario"],["serie","N° de Serie"],["equipo","Equipo"],
+  ["servicio","Servicio"],["ubicacion","Ubicación"],["marca","Marca"],["modelo","Modelo"],
+  ["_realizadas","Realizadas"],["_pend","Pendientes"],["ultimaActualizacion","Última Act."],
+  ["_nota","Notas / Actualizaciones"],["_editado","Editado"]
+];
 const EVENT_COLS=[
   ["id","ID"],["carpeta","N° Carpeta"],["inventario","N° Inventario"],["equipo","Nombre del Equipo"],
   ["servicio","Servicio"],["unidad","Unidad"],["ubicacion","Ubicación"],["procedencia","Procedencia"],
@@ -378,7 +432,54 @@ function renderEventos(){
   $("count").textContent=rows.length+" de "+DATA.events.length+" eventos";
 }
 
-function render(){ renderEventos(); }
+// ---- filtrado de equipos (listado único): búsqueda + servicio + clasificación ----
+function filteredEquiposView(){
+  const f=filters();
+  return EQUIPOS.filter(e=>{
+    if(f.servicio && e.servicio!==f.servicio) return false;
+    if(f.clasif && e.clasif!==f.clasif) return false;
+    if(!matchEquipoText(e,f.q)) return false;
+    return true;
+  });
+}
+
+// ---- render equipos (una fila por equipo + notas) ----
+function renderEquipos(){
+  renderHead(EQUIPO_COLS);
+  const get=(e,k)=>{
+    if(k==="_realizadas") return e.counts.si;
+    if(k==="_pend") return e.pendientes;
+    if(k==="_nota") return noteFor(equipKey(e)).text;
+    if(k==="_editado") return noteFor(equipKey(e)).ts;
+    return e[k];
+  };
+  let rows=sortRows(filteredEquiposView(),get);
+  const frag=[];
+  for(const e of rows){
+    const key=equipKey(e), n=noteFor(key);
+    let h='<tr class="clk'+(n.text?' has-nota':'')+'" data-notekey="'+esc(key)+'">';
+    EQUIPO_COLS.forEach(([k])=>{
+      if(k==="_realizadas") h+='<td><span class="pill cnt-ok">'+e.counts.si+'</span></td>';
+      else if(k==="_pend"){ const c=e.pendientes>0?"cnt-noreg":"zero"; h+='<td><span class="pill '+c+'">'+e.pendientes+'</span></td>'; }
+      else if(k==="_nota") h+='<td class="nota-cell">'+(n.text?esc(n.text.length>90?n.text.slice(0,90)+"…":n.text):'<span class="nota-empty">✎ Agregar nota</span>')+'</td>';
+      else if(k==="_editado") h+='<td class="muted" style="white-space:nowrap">'+fmtTs(n.ts)+'</td>';
+      else if(k==="serie"||k==="inventario") h+='<td class="mono">'+(esc(e[k])||'<span class=muted>—</span>')+'</td>';
+      else h+='<td>'+(esc(e[k])||'<span class=muted>—</span>')+'</td>';
+    });
+    h+="</tr>"; frag.push(h);
+  }
+  $("body").innerHTML=frag.join("");
+  $("count").textContent=rows.length+" de "+EQUIPOS.length+" equipos"+(countNotes()?(" · "+countNotes()+" con notas"):"");
+}
+
+function render(){
+  $("f_mes").style.display=$("f_resultado").style.display=(TAB==="eventos")?"":"none";
+  if(TAB==="equipos") renderEquipos(); else renderEventos();
+}
+function activateTab(name){
+  TAB=name; sortKey=null;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active", x.dataset.tab===name));
+}
 
 // ---- tarjetas resumen (cliqueables) ----
 function renderCards(){
@@ -416,6 +517,27 @@ function modalEvento(ev){
     ["Cant. Pendientes",ev.pendientes],["Última Actualización",ev.ultimaActualizacion]]));
 }
 
+// ---- editor de notas / actualizaciones por equipo ----
+function openNoteModal(key){
+  const e=EQ_BY_KEY[key]; if(!e) return;
+  const n=noteFor(key);
+  const body=kv([["ID",e.id],["N° Inventario",e.inventario],["N° de Serie",e.serie],
+    ["Equipo",e.equipo],["Servicio",e.servicio],["Ubicación",e.ubicacion],
+    ["Marca",e.marca],["Modelo",e.modelo],["Última actualización (MP)",e.ultimaActualizacion]])
+    +"<label for='noteText'>Notas / Actualizaciones</label>"
+    +"<textarea id='noteText' class='note-edit' placeholder='Escribe aquí observaciones, seguimiento o actualizaciones de este equipo…'>"+esc(n.text)+"</textarea>"
+    +"<div class='note-meta'>Última edición de la nota: "+fmtTs(n.ts)+"</div>"
+    +"<div style='margin-top:12px;display:flex;gap:8px'>"
+    +"<button class='btn primary' id='noteSave'>Guardar</button>"
+    +"<button class='btn' id='noteDel'>Borrar nota</button>"
+    +"<button class='btn' id='noteCancel'>Cancelar</button></div>";
+  openModal("Notas — "+(e.equipo||"Equipo")+" ("+(e.inventario||e.serie||("#"+e.id))+")", body);
+  $("noteSave").onclick=()=>{ saveNote(key, $("noteText").value); closeModal(); render(); toast("Nota guardada."); };
+  $("noteDel").onclick=()=>{ delNote(key); closeModal(); render(); toast("Nota borrada."); };
+  $("noteCancel").onclick=closeModal;
+  $("noteText").focus();
+}
+
 // ---- eventos de UI ----
 $("head").addEventListener("click",ev=>{
   const th=ev.target.closest("th"); if(!th) return; const k=th.dataset.k;
@@ -424,14 +546,17 @@ $("head").addEventListener("click",ev=>{
   render();
 });
 $("body").addEventListener("click",ev=>{
+  const noteRow=ev.target.closest("tr[data-notekey]");
+  if(noteRow){ openNoteModal(noteRow.dataset.notekey); return; }
   const evRow=ev.target.closest("tr[data-ev]");
   if(evRow){ modalEvento(window.__evRows[+evRow.dataset.ev]); }
 });
 $("cards").addEventListener("click",ev=>{
   const c=ev.target.closest(".card"); if(!c) return;
   const rf=c.dataset.rf;
-  if(rf){ $("f_resultado").value=rf; render(); }
+  if(rf){ activateTab("eventos"); $("f_resultado").value=rf; render(); }
 });
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{ activateTab(t.dataset.tab); render(); }));
 ["q","f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).addEventListener("input",render));
 $("clear").addEventListener("click",()=>{ $("q").value="";
   ["f_servicio","f_clasif","f_mes","f_resultado"].forEach(id=>$(id).value=""); sortKey=null; render(); });
@@ -439,9 +564,9 @@ $("m-x").addEventListener("click",closeModal);
 $("ov").addEventListener("click",ev=>{ if(ev.target===$("ov")) closeModal(); });
 document.addEventListener("keydown",ev=>{ if(ev.key==="Escape") closeModal(); });
 
-// filtros rápidos (chips): data-r contiene el valor exacto del filtro «Resultado»
+// filtros rápidos (chips): filtran por resultado -> saltan a la vista Eventos
 document.querySelectorAll(".chip").forEach(ch=>ch.addEventListener("click",()=>{
-  $("f_resultado").value=ch.dataset.r||""; render();
+  activateTab("eventos"); $("f_resultado").value=ch.dataset.r||""; render();
   window.scrollTo({top:0,behavior:"smooth"});
 }));
 
@@ -456,7 +581,7 @@ $("file").addEventListener("change",ev=>{
       if(wb.SheetNames.indexOf("Registro_MP-2026")<0){ toast("No se encontró la hoja «Registro_MP-2026»."); return; }
       const ws=wb.Sheets["Registro_MP-2026"];
       const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""});
-      DATA=transform(aoa.slice(6));        // fila 7 = encabezado
+      setData(transform(aoa.slice(6)));    // fila 7 = encabezado
       SRC=file.name;
       refreshFilters(); renderCards(); render(); renderNotes();
       toast("Datos actualizados desde «"+file.name+"»: "+DATA.stats.eventos+" eventos / "+DATA.stats.equipos+" equipos.");
@@ -467,13 +592,59 @@ $("file").addEventListener("change",ev=>{
   ev.target.value="";
 });
 
-// ---- exportar CSV (eventos filtrados) ----
+// ---- exportar/importar notas (JSON, para respaldo y compartir) ----
+$("expNotas").addEventListener("click",()=>{
+  const payload={app:"AQF MP "+YEAR, version:1, exported:new Date().toISOString(), notas:NOTES};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8;"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="notas_mp_"+YEAR+".json"; a.click();
+});
+$("impNotas").addEventListener("click",()=>$("notesFile").click());
+$("notesFile").addEventListener("change",ev=>{
+  const file=ev.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const obj=JSON.parse(e.target.result);
+      const inc=(obj && obj.notas) ? obj.notas : obj;
+      if(!inc || typeof inc!=="object") throw new Error("formato no reconocido");
+      let n=0;
+      for(const k in inc){
+        const v=inc[k]; if(!v) continue;
+        const t=(typeof v==="string")?{text:v,ts:""}:{text:(v.text||""),ts:(v.ts||"")};
+        if(!t.text) continue;
+        const cur=NOTES[k];
+        if(!cur || !cur.ts || (t.ts && t.ts>cur.ts)){ NOTES[k]=t; n++; }   // conserva la más reciente
+      }
+      persistNotes(); render();
+      toast("Notas importadas/actualizadas: "+n+".");
+    }catch(err){ toast("Error al importar notas: "+err.message); }
+  };
+  rd.onerror=()=>toast("No se pudo leer el archivo de notas.");
+  rd.readAsText(file); ev.target.value="";
+});
+
+// ---- exportar CSV (vista activa) ----
 $("csv").addEventListener("click",()=>{
-  const lines=[EVENT_COLS.map(c=>c[1]).join(";")];
-  filteredEvents().forEach(d=>{ lines.push(EVENT_COLS.map(c=>csv(c[0]==="estadoTxt"?d.estadoTxt:d[c[0]])).join(";")); });
+  let lines=[];
+  if(TAB==="equipos"){
+    lines.push(EQUIPO_COLS.map(c=>c[1]).join(";"));
+    filteredEquiposView().forEach(e=>{ const n=noteFor(equipKey(e));
+      lines.push(EQUIPO_COLS.map(([k])=>{
+        if(k==="_realizadas") return e.counts.si;
+        if(k==="_pend") return e.pendientes;
+        if(k==="_nota") return csv(n.text);
+        if(k==="_editado") return csv(fmtTs(n.ts));
+        return csv(e[k]);
+      }).join(";"));
+    });
+  }else{
+    lines.push(EVENT_COLS.map(c=>c[1]).join(";"));
+    filteredEvents().forEach(d=>{ lines.push(EVENT_COLS.map(c=>csv(c[0]==="estadoTxt"?d.estadoTxt:d[c[0]])).join(";")); });
+  }
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8;"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-  a.download="reporte_mp_"+YEAR+"_eventos.csv"; a.click();
+  a.download="reporte_mp_"+YEAR+"_"+TAB+".csv"; a.click();
 });
 function csv(v){ v=(v==null)?"":String(v); return (/[;"\n]/.test(v))?'"'+v.replace(/"/g,'""')+'"':v; }
 
@@ -492,11 +663,12 @@ function renderNotes(){
   const mesRef = REF_MONTH>=1&&REF_MONTH<=12 ? MESES[REF_MONTH-1].toLowerCase() : "—";
   $("notes").innerHTML=
     "<p><b>Fuente:</b> hoja <code>Registro_MP-2026</code> de <code>"+esc(SRC)+"</code> (encabezado fila 7, columnas B–AQ, ignorando Q «Observación» y S «Responsable MP»).</p>"+
-    "<p><b>Una fila por evento</b>: cada combinación de equipo × mes con programación (P) y/o resultado (R). <b>Clic</b> en cualquier fila para ver el detalle completo del evento.</p>"+
-    "<p><b>No registrado</b> (resultado vacío) = meses transcurridos (enero a "+mesRef+" "+YEAR+") con MP programada y sin resultado registrado; se refleja en «Cant. Pend.» y en el estado «Pendiente (sin registro)».</p>"+
+    "<p><b>Vista «Equipos» (listado único):</b> una fila por equipo (identificado por N° de Serie o N° de Inventario). <b>Clic</b> en una fila para escribir/editar sus <b>Notas / Actualizaciones</b>.</p>"+
+    "<p><b>Notas:</b> se guardan en este navegador (localStorage) por equipo. Usa <b>«Exportar notas»</b> para respaldarlas o compartirlas (archivo .json) e <b>«Importar notas»</b> en otro equipo; al importar se conserva la versión más reciente de cada nota.</p>"+
+    "<p><b>Vista «Eventos»:</b> una fila por combinación de equipo × mes con programación (P) y/o resultado (R). <b>Clic</b> en una fila para ver el detalle del evento.</p>"+
+    "<p><b>No registrado</b> (resultado vacío) = meses transcurridos (enero a "+mesRef+" "+YEAR+") con MP programada y sin resultado registrado; se refleja en «Pendientes» y en el estado «Pendiente (sin registro)».</p>"+
     "<p><b>N° de Serie / Inventario:</b> se conservan tal cual, respetando ceros a la izquierda.</p>"+
     "<p><b>Fecha de Ejecución:</b> el registro es a nivel de mes; se muestra el mes cuando el resultado es Si/Si-RA.</p>"+
-    "<p><b>Estado del Equipo</b> (vista eventos): derivado del código de resultado; si sólo hay programación → «Pendiente» (mes transcurrido) o «Programada» (futuro).</p>"+
     "<p class='muted'>Reporte generado el "+GEN_DATE+". Cálculos de meses transcurridos según la fecha del navegador (mes de referencia actual: "+mesRef+" "+YEAR+"). Puede importar un .xlsm actualizado con el botón «Importar .xlsm».</p>";
   $("foot").textContent="Reporte autónomo · "+DATA.stats.eventos+" eventos · "+DATA.stats.equipos+" equipos · generado "+GEN_DATE;
 }
